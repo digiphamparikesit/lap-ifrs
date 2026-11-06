@@ -127,12 +127,12 @@ async function renderDashboard() {
 }
 
 async function renderInput() {
-  view.innerHTML = `
-    <div style="background:#fff; padding:24px; border-radius:12px; border:1px solid var(--gray-200); text-align:center; margin-top:20px;">
-      <h2 style="color:var(--green-700);">🚧 Modul Input Laporan</h2>
-      <p style="color:var(--gray-500);">Form input dinamis sesuai ruangan akan tampil di sini (Fase 4).</p>
-    </div>
-  `;
+ // Tambahkan import di paling atas
+import { renderFormInput } from './laporan.js';
+
+// Lalu ganti fungsi renderInput yang lama menjadi:
+async function renderInput() {
+  await renderFormInput(view);
 }
 
 async function renderStaff() {
