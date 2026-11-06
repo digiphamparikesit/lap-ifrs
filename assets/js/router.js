@@ -1,5 +1,6 @@
 // assets/js/router.js
 import { supabase } from './supabase.js';
+import { renderFormInput } from './laporan.js'; // Import ditaruh di paling atas
 
 // State global user
 export const state = {
@@ -29,13 +30,12 @@ async function initAuth() {
   // 2) Ambil profil
   const { data: profile, error: pErr } = await supabase
     .from('user_profiles')
-    .select('role, ruangan_id, ruangan(nama, template_key, punya_shift)')
+    .select('role, ruangan_id, ruangan(id, nama, template_key, punya_shift)')
     .eq('id', session.user.id)
     .single();
 
   if (pErr || !profile) {
     console.error(pErr);
-    // Kalau error profil, logout paksa (daripada bug aneh)
     await supabase.auth.signOut();
     window.location.replace('index.html');
     return false;
@@ -46,22 +46,16 @@ async function initAuth() {
   state.ruangan = profile.ruangan;
 
   // 4) Update UI (Header & Sidebar)
-  const userEmail = session.user.email;
-  
-  // Set nama ruangan atau "Administrator"
   document.getElementById('ruangan-nama').textContent = profile.role === 'admin' 
     ? 'Administrator Pusat' 
     : (profile.ruangan?.nama || 'Ruangan Tidak Diketahui');
 
-  // Set badge role
   const badge = document.getElementById('user-role');
   badge.textContent = profile.role === 'admin' ? 'ADMIN' : 'PETUGAS';
   
-  // Set Avatar inisial (IGD -> I, RJM -> R, Admin -> A)
   const inisial = profile.role === 'admin' ? 'A' : (profile.ruangan?.nama?.match(/[A-Z]/g)?.slice(0,1).join('') || '?');
   document.getElementById('user-avatar').textContent = inisial;
 
-  // Tampilkan menu admin jika role == admin
   if (profile.role === 'admin') {
     document.querySelectorAll('.admin-only').forEach(el => el.hidden = false);
   }
@@ -80,33 +74,24 @@ const routes = {
 };
 
 async function handleRoute() {
-  // Ambil hash (misal "#/dashboard" -> "dashboard")
   let hash = window.location.hash.replace(/^#\/?/, '') || 'dashboard';
   
-  // Fallback jika route tidak ada
   if (!routes[hash]) hash = 'dashboard';
 
-  // Proteksi khusus: Hanya admin bisa akses pengaturan
   if (hash === 'pengaturan' && state.profile.role !== 'admin') {
     window.location.hash = '#/dashboard';
     return;
   }
 
-  // 1. Update Active State di Sidebar
   navItems.forEach(el => {
     if (el.dataset.route === hash) el.classList.add('active');
     else el.classList.remove('active');
   });
 
-  // 2. Tutup sidebar (kalau di mobile)
   closeSidebar();
 
-  // 3. Render View
   try {
-    // Tampilkan loading sementara
     view.innerHTML = `<div class="loading-state"><div class="spinner spinner-dark"></div> Memuat…</div>`;
-    
-    // Panggil fungsi render sesuai rute
     await routes[hash]();
   } catch (err) {
     console.error(`Error rendering ${hash}:`, err);
@@ -115,7 +100,7 @@ async function handleRoute() {
 }
 
 /* =========================================================
-   3. RENDER FUNCTIONS (PLACEHOLDER)
+   3. RENDER FUNCTIONS (PLACEHOLDER & IMPORT)
    ========================================================= */
 async function renderDashboard() {
   view.innerHTML = `
@@ -127,7 +112,7 @@ async function renderDashboard() {
 }
 
 async function renderInput() {
-  // Kirim state ke fungsi form
+  // Memanggil form dari laporan.js dan mengirimkan state
   await renderFormInput(view, state);
 }
 
@@ -172,7 +157,6 @@ btnLogout.addEventListener('click', async () => {
 });
 
 window.addEventListener('hashchange', handleRoute);
-// Jangan lupa minta halaman memuat route pertama kali
 
 /* =========================================================
    5. START APP
@@ -180,7 +164,6 @@ window.addEventListener('hashchange', handleRoute);
 (async () => {
   const ok = await initAuth();
   if (ok) {
-    // Kalau belum ada hash, arahkan ke dashboard
     if (!window.location.hash) window.location.hash = '#/dashboard';
     handleRoute(); 
   }
