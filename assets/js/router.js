@@ -127,12 +127,8 @@ async function renderDashboard() {
 }
 
 async function renderInput() {
- // Tambahkan import di paling atas
-import { renderFormInput } from './laporan.js';
-
-// Lalu ganti fungsi renderInput yang lama menjadi:
-async function renderInput() {
-  await renderFormInput(view);
+  // Kirim state ke fungsi form
+  await renderFormInput(view, state);
 }
 
 async function renderStaff() {
