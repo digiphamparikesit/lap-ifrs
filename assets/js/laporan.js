@@ -1,12 +1,12 @@
 // assets/js/laporan.js
 import { supabase } from './supabase.js';
-import { state } from './router.js';
 import { getTemplate, getGroups } from './templates.js';
 
 /* =========================================================
    1. RENDER FORM DINAMIS
    ========================================================= */
-export async function renderFormInput(container) {
+// Perhatikan tambahan parameter (state) di sini
+export async function renderFormInput(container, state) {
   const t = state.ruangan?.template_key;
   if (!t) {
     container.innerHTML = `<div class="login-error">Template ruangan tidak ditemukan.</div>`;
@@ -16,23 +16,32 @@ export async function renderFormInput(container) {
   const template = getTemplate(t);
   const groups = getGroups(t);
 
-  // Tampilkan loading sambil ambil data staff
+  // Tampilkan loading
   container.innerHTML = `<div class="loading-state"><div class="spinner spinner-dark"></div> Memuat form…</div>`;
 
-  // Ambil staff yang terdaftar di ruangan ini
-  const { data: staffList, error: staffErr } = await supabase
-    .from('staff_ruangan')
-    .select('staff(id, nama)')
-    .eq('ruangan_id', state.ruangan.id || state.profile.ruangan_id);
-
-  // Jika admin, ambil semua staff
   let daftarStaff = [];
-  if (state.profile.role === 'admin') {
-    const { data } = await supabase.from('staff').select('id, nama').eq('aktif', true);
-    daftarStaff = data || [];
-  } else {
-    if (staffErr) console.error(staffErr);
-    daftarStaff = (staffList || []).map(s => s.staff);
+
+  try {
+    // Ambil staff yang terdaftar di ruangan ini (untuk user biasa)
+    if (state.profile.role === 'admin') {
+      const { data } = await supabase.from('staff').select('id, nama').eq('aktif', true);
+      daftarStaff = data || [];
+    } else {
+      // Ambil ruangan_id dari profile (lebih aman daripada state.ruangan.id)
+      const rId = state.profile.ruangan_id; 
+      
+      const { data, error } = await supabase
+        .from('staff_ruangan')
+        .select('staff(id, nama)')
+        .eq('ruangan_id', rId);
+        
+      if (error) throw error;
+      daftarStaff = (data || []).map(s => s.staff).filter(Boolean);
+    }
+  } catch (err) {
+    console.error("Gagal load staff:", err);
+    container.innerHTML = `<div class="login-error">Gagal memuat data staff: ${err.message}</div>`;
+    return;
   }
 
   // Generate HTML Form
@@ -70,7 +79,12 @@ export async function renderFormInput(container) {
         const opts = f.opsi.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
         inputHTML = `<select id="field-${f.id}" name="${f.id}" ${req}><option value="">— Pilih —</option>${opts}</select>`;
       } else {
-        inputHTML = `<input type="${f.type}" id="field-${f.id}" name="${f.id}" ${req} ${f.min !== undefined ? `min="${f.min}"` : ''} />`;
+        // Isi default tanggal dengan hari ini
+        let defVal = '';
+        if (f.type === 'date') {
+          defVal = new Date().toISOString().split('T')[0];
+        }
+        inputHTML = `<input type="${f.type}" id="field-${f.id}" name="${f.id}" value="${defVal}" ${req} ${f.min !== undefined ? `min="${f.min}"` : ''} />`;
       }
 
       formHTML += `
@@ -96,7 +110,7 @@ export async function renderFormInput(container) {
   initPetugasSearch(daftarStaff);
 
   // Handle Submit
-  document.getElementById('form-laporan').addEventListener('submit', (e) => handleSubmit(e, template));
+  document.getElementById('form-laporan').addEventListener('submit', (e) => handleSubmit(e, template, state));
 }
 
 /* =========================================================
@@ -155,6 +169,7 @@ function initPetugasSearch(daftarStaff) {
   function renderSelected() {
     selectedList.innerHTML = selected.map(id => {
       const staff = daftarStaff.find(s => s.id === id);
+      if(!staff) return '';
       return `
         <div class="pill">
           ${staff.nama}
@@ -179,7 +194,7 @@ function initPetugasSearch(daftarStaff) {
 /* =========================================================
    3. PROSES SIMPAN LAPORAN
    ========================================================= */
-async function handleSubmit(e, template) {
+async function handleSubmit(e, template, state) {
   e.preventDefault();
   const btn = document.getElementById('btn-simpan');
   btn.disabled = true;
@@ -189,7 +204,6 @@ async function handleSubmit(e, template) {
     const formData = new FormData(e.target);
     const dataPayload = {};
     
-    // Ambil tanggal & shift (jika ada) untuk kolom khusus tabel
     let tanggal = null;
     let shift = null;
     let petugasIds = [];
@@ -203,7 +217,7 @@ async function handleSubmit(e, template) {
         tanggal = val;
       } else if (f.id === 'shift') {
         shift = val;
-        dataPayload[f.id] = val; // simpan juga di JSONB
+        dataPayload[f.id] = val;
       } else {
         // Konversi ke angka jika tipe number
         dataPayload[f.id] = f.type === 'number' ? (parseInt(val) || 0) : val;
@@ -213,17 +227,18 @@ async function handleSubmit(e, template) {
     if (petugasIds.length === 0) throw new Error("Pilih minimal 1 petugas.");
     if (!tanggal) throw new Error("Tanggal harus diisi.");
 
-    // Payload untuk tabel
+    const rId = state.ruangan?.id || state.profile?.ruangan_id;
+
     const payload = {
-      ruangan_id: state.ruangan.id || state.profile.ruangan_id,
+      ruangan_id: rId,
       tanggal: tanggal,
-      shift: shift || null, // null jika tidak ada shift
+      shift: shift || null,
       petugas_ids: petugasIds,
       data: dataPayload,
       created_by: (await supabase.auth.getUser()).data.user.id
     };
 
-    // Simpan (Upsert berdasarkan ruangan_id + tanggal + shift)
+    // Simpan (Upsert)
     const { error } = await supabase
       .from('laporan')
       .upsert(payload, { onConflict: 'ruangan_id, tanggal, shift' });
@@ -231,9 +246,13 @@ async function handleSubmit(e, template) {
     if (error) throw error;
 
     alert('✅ Laporan berhasil disimpan!');
-    e.target.reset();
+    
+    // Reset form (kecuali tanggal & shift)
     document.getElementById('selected-petugas').innerHTML = '';
     document.getElementById('field-petugas').value = '';
+    template.fields.forEach(f => {
+      if (f.type === 'number') document.getElementById(`field-${f.id}`).value = '';
+    });
 
   } catch (err) {
     console.error(err);
