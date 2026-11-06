@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Aplikasi Laporan Farmasi</title>
+  <meta name="theme-color" content="#16a34a" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body class="app-page">
+
+  <!-- Overlay untuk mobile saat sidebar terbuka -->
+  <div id="sidebar-overlay" class="sidebar-overlay" hidden></div>
+
+  <!-- SIDEBAR KIRI -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand">
+        <span class="brand-icon">💊</span>
+        <div>
+          <h2>Laporan Farmasi</h2>
+          <p>Instalasi Farmasi</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#/dashboard" class="nav-item" data-route="dashboard">
+        <span class="nav-icon">🏠</span> Dashboard
+      </a>
+      <a href="#/input" class="nav-item" data-route="input">
+        <span class="nav-icon">📝</span> Input Laporan
+      </a>
+      <a href="#/staff" class="nav-item" data-route="staff">
+        <span class="nav-icon">👥</span> Daftar Staff
+      </a>
+      <a href="#/pengaturan" class="nav-item admin-only" data-route="pengaturan" hidden>
+        <span class="nav-icon">⚙️</span> Pengaturan
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <button id="btn-logout" class="btn-logout">
+        <span class="nav-icon">🚪</span> Logout
+      </button>
+    </div>
+  </aside>
+
+  <!-- AREA KONTEN UTAMA -->
+  <div class="main-wrapper">
+    <!-- HEADER ATAS -->
+    <header class="topbar">
+      <button id="btn-toggle-sidebar" class="btn-hamburger" aria-label="Menu">☰</button>
+      
+      <div class="topbar-info">
+        <h1 id="ruangan-nama">Memuat…</h1>
+        <span id="user-role" class="badge">…</span>
+      </div>
+
+      <div class="topbar-user">
+        <div id="user-avatar" class="avatar">?</div>
+      </div>
+    </header>
+
+    <!-- TEMPAT KONTEN DINAMIS -->
+    <main id="view" class="content-area">
+      <div class="loading-state">
+        <div class="spinner spinner-dark"></div> Memuat data…
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="assets/js/router.js"></script>
+</body>
+</html>
