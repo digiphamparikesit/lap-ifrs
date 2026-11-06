@@ -342,3 +342,81 @@ h1, h2, h3 { margin: 0 0 .5rem; font-weight: 700; }
   .content-area { padding: 16px; }
   .topbar-info h1 { font-size: 1rem; }
 }
+
+/* =========================================================
+   FORM LAPORAN DINAMIS
+   ========================================================= */
+.form-laporan {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--gray-200);
+  overflow: hidden;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.form-section {
+  border-bottom: 1px solid var(--gray-200);
+}
+.form-section:last-child { border-bottom: none; }
+
+.section-title {
+  background: var(--green-50);
+  color: var(--green-800);
+  padding: 12px 20px;
+  margin: 0;
+  font-size: 1rem;
+  border-bottom: 1px solid var(--green-100);
+}
+
+.section-body {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .section-body { grid-template-columns: 1fr; }
+}
+
+.form-group.full-width { grid-column: 1 / -1; }
+.required { color: var(--danger); }
+
+.form-actions {
+  padding: 20px;
+  background: var(--gray-50);
+  text-align: right;
+  border-top: 1px solid var(--gray-200);
+}
+
+/* --- Custom Search Petugas --- */
+.search-petugas-wrap { position: relative; }
+.dropdown-petugas {
+  position: absolute; top: 100%; left: 0; right: 0;
+  background: #fff; border: 1px solid var(--gray-200);
+  border-radius: 8px; box-shadow: var(--shadow-md);
+  max-height: 200px; overflow-y: auto; z-index: 10;
+  margin-top: 4px;
+}
+.dropdown-item {
+  padding: 10px 12px; cursor: pointer; font-size: .9rem;
+}
+.dropdown-item:hover { background: var(--green-50); }
+.dropdown-item.disabled { color: var(--gray-500); cursor: default; }
+
+.selected-petugas-list {
+  display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;
+}
+.pill {
+  background: var(--green-100); color: var(--green-800);
+  padding: 4px 10px; border-radius: 16px; font-size: .85rem;
+  display: flex; align-items: center; gap: 6px;
+  font-weight: 500; border: 1px solid var(--green-200);
+}
+.pill-remove {
+  background: none; border: none; color: var(--green-800);
+  font-size: 1.2rem; line-height: 1; cursor: pointer; padding: 0;
+}
+.pill-remove:hover { color: var(--danger); }
