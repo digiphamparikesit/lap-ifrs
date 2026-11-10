@@ -90,6 +90,7 @@ export async function renderPresensi(container, state) {
 
     let valRuangan = isAdmin ? document.getElementById('filter-ruangan').value : state.profile.ruangan_id;
 
+    // Ambil data laporan
     const { data, error } = await supabase.from('laporan')
       .select('tanggal, petugas_ids, data')
       .eq('ruangan_id', valRuangan)
@@ -102,53 +103,49 @@ export async function renderPresensi(container, state) {
       return;
     }
 
+    // Ambil master data staff
     const { data: staffList } = await supabase.from('staff').select('id, nama');
     const staffMap = {};
     if (staffList) staffList.forEach(s => staffMap[s.id] = s.nama);
 
     const rekap = {}; 
+    const hitungNama = (nama, tanggal) => {
+      // Bersihkan spasi dan cek
+      const cleanName = nama.trim();
+      if (!cleanName) return;
+      
+      // Cari apakah nama ini ada di master staff (untuk menyeragamkan ejaan)
+      const match = Object.values(staffMap).find(nAsli => 
+        nAsli.toLowerCase().includes(cleanName.toLowerCase().split(',')[0])
+      );
+      
+      const finalName = match || cleanName;
 
-    // FUNGSI BANTU UNTUK MENCATAT REKAP
-    const tambahRekap = (nama, tanggal) => {
-      if (!nama || nama.trim() === '') return;
-      if (!rekap[nama]) rekap[nama] = { count: 0, lastDate: tanggal };
-      rekap[nama].count++;
-      if (tanggal > rekap[nama].lastDate) rekap[nama].lastDate = tanggal;
+      if (!rekap[finalName]) rekap[finalName] = { count: 0, lastDate: tanggal };
+      rekap[finalName].count++;
+      if (tanggal > rekap[finalName].lastDate) rekap[finalName].lastDate = tanggal;
     };
 
     data.forEach(lap => {
-      // A. Baca dari inputan baru (UUID)
+      // 1. Baca dari inputan baru (UUID)
       if (lap.petugas_ids && lap.petugas_ids.length > 0) {
         lap.petugas_ids.forEach(id => {
-          tambahRekap(staffMap[id] || 'Staff Tidak Dikenal', lap.tanggal);
+          hitungNama(staffMap[id] || 'Staff Baru', lap.tanggal);
         });
       }
       
-      // B. Baca dari data migrasi Excel (Teks)
+      // 2. Baca dari data migrasi Excel (Teks)
       if (lap.data) {
-        // Lakukan perulangan ke SELURUH isi JSON data
-        Object.values(lap.data).forEach(val => {
-          if (typeof val === 'string') {
-            // Cek apakah teks ini adalah nama staff yang ada di database
-            const teks = val.trim();
-            if (teks === '') return;
+        Object.keys(lap.data).forEach(key => {
+          // SANGAT KETAT: Hanya ambil key yang ada kata "petugas" tapi BUKAN "ids"
+          if (key.toLowerCase().includes('petugas') && !key.toLowerCase().includes('ids')) {
+            let val = lap.data[key];
             
-            // Cek apakah teks mengandung nama staff yang terdaftar
-            // (Misal: "Aji Yuhda Wijaya,S.Farm.Apt" ada di daftar staff)
-            const isStaffName = Object.values(staffMap).some(namaAsli => 
-               teks.toLowerCase().includes(namaAsli.toLowerCase().split(',')[0])
-            );
-            
-            if (isStaffName) {
-               // Jika ada koma, pisah (jika 1 sel isinya 2 staff)
-               const listNama = teks.split(',').map(s => s.trim());
-               listNama.forEach(n => {
-                 // Cocokkan nama persisnya dari master
-                 const match = Object.values(staffMap).find(namaAsli => 
-                    namaAsli.toLowerCase().includes(n.toLowerCase())
-                 );
-                 if (match) tambahRekap(match, lap.tanggal);
-               });
+            // Pastikan isinya string dan bukan angka
+            if (typeof val === 'string' && val.trim() !== '' && isNaN(val)) {
+              // Pisahkan jika ada koma (misal: "Budi, Ani")
+              const listNama = val.split(',').map(s => s.trim());
+              listNama.forEach(n => hitungNama(n, lap.tanggal));
             }
           }
         });
