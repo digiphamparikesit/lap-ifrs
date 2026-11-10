@@ -87,7 +87,7 @@ form.addEventListener('submit', async (e) => {
   }
 
   // sukses → redirect
-  window.location.replace('app.html');
+ window.location.replace('app.html#/dashboard');
 });
 
 /* ---------------- init ---------------- */
