@@ -593,18 +593,37 @@ dialog {
 }
 
 /* =========================================================
-   MODAL PETUGAS (POP-UP LEBAR & LEGA)
+   MODAL PETUGAS (POP-UP LEBAR & LEGA DI TENGAH)
    ========================================================= */
 .modal-petugas {
   width: 90vw;
   max-width: 800px; /* Lebar maksimal modal, cukup untuk 3-4 kolom */
-  max-height: 90vh;
+  max-height: 85vh;
   padding: 0;
   border-radius: 12px;
   border: none;
   box-shadow: 0 10px 40px rgba(0,0,0,.2);
+  
+  /* KUNCI AGAR DI TENGAH LAYAR */
+  margin: auto; 
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+/* Styling untuk isi modal (Flexbox) */
+.modal-petugas > * {
+  display: block;
+}
+.modal-petugas[open] {
   display: flex;
   flex-direction: column;
+}
+
+/* Background gelap di belakang modal */
+.modal-petugas::backdrop {
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(3px);
 }
 
 .modal-header {
@@ -615,14 +634,8 @@ dialog {
   align-items: center;
   background: var(--green-50);
   border-radius: 12px 12px 0 0;
+  flex-shrink: 0;
 }
-
-.modal-close {
-  background: none; border: none; 
-  font-size: 24px; cursor: pointer; 
-  color: var(--gray-500); line-height: 1;
-}
-.modal-close:hover { color: var(--danger); }
 
 .modal-toolbar {
   padding: 12px 20px;
@@ -631,6 +644,7 @@ dialog {
   justify-content: space-between;
   align-items: center;
   background: var(--gray-50);
+  flex-shrink: 0;
 }
 
 .modal-body-grid {
@@ -648,20 +662,5 @@ dialog {
   text-align: right;
   background: #fff;
   border-radius: 0 0 12px 12px;
-}
-
-/* Tampilan tombol pemicu modal di form */
-.btn-buka-petugas {
-  text-align: left;
-  background: #fff;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border: 1.5px solid var(--gray-200);
-  transition: all 0.2s;
-}
-.btn-buka-petugas:hover {
-  border-color: var(--green-500);
-  background: var(--green-50);
+  flex-shrink: 0;
 }
