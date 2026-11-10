@@ -2,47 +2,56 @@
 import { supabase } from './supabase.js';
 import { getTemplate, getMetricFields } from './templates.js';
 
-let mainChart = null;
-let modalChart = null;
+let myChart = null;
+
+// =========================================================
+// KONFIGURASI DEFAULT METRIK PER RUANGAN
+// =========================================================
+const DEFAULT_METRICS = {
+  'ibs': 'operasi_elektif',
+  'igd': 'resep_terlayani',
+  'irin_mat': 'resep_per_shift',
+  'irna1': 'resep_per_shift',
+  'onkologi': 'sediaan_sitostatika', // Di Excel: Jumlah Sediaan IV Admixture Sitostatika
+  'rj': 'total_resep',
+  'rj_maternitas': 'total_resep'
+};
 
 export async function renderDashboard(container, state) {
   const isAdmin = state.profile.role === 'admin';
   
-  // Ambil daftar ruangan & staff
-  const { data: ruanganList } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
-  const { data: staffList } = await supabase.from('staff').select('id, nama');
-  
-  const staffMap = {};
-  if (staffList) staffList.forEach(s => staffMap[s.id] = s.nama);
+  // 1. Ambil daftar ruangan (jika admin)
+  let listRuangan = [];
+  if (isAdmin) {
+    const { data } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
+    listRuangan = data || [];
+  }
 
-  // Metrik default (untuk filter global)
-  const defaultTk = isAdmin ? 'igd' : state.ruangan.template_key;
-  
-  const tglHariIni = new Date().toISOString().split('T')[0];
-  const thnIni = new Date().getFullYear();
+  const defaultTemplateKey = isAdmin ? (listRuangan[0]?.template_key || 'igd') : state.ruangan.template_key;
+  const defaultMetric = DEFAULT_METRICS[defaultTemplateKey] || getMetricFields(defaultTemplateKey)[0]?.id;
 
-  // HTML Tampilan
+  // HTML Tampilan Dashboard
   container.innerHTML = `
     <div class="dashboard-header">
       <h2 class="page-title">Dashboard Pelayanan</h2>
       
-      <!-- Filter Sejajar -->
-      <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom:24px;">
+      <div class="filter-bar" style="align-items:flex-end; display:flex; flex-wrap:wrap; gap:12px; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom:24px;">
         
         ${isAdmin ? `
         <div class="form-group" style="margin:0; flex:1; min-width:150px;">
           <label style="font-size:.75rem;">Ruangan</label>
           <select id="filter-ruangan" class="form-control">
-            <option value="ALL">-- Semua Ruangan --</option>
-            ${ruanganList.map(r => `<option value="${r.id}" data-tk="${r.template_key}">${r.nama}</option>`).join('')}
+            ${listRuangan.map(r => `<option value="${r.id}" data-tk="${r.template_key}">${r.nama}</option>`).join('')}
           </select>
         </div>` : ''}
 
         <div class="form-group" style="margin:0; flex:1; min-width:120px;">
           <label style="font-size:.75rem;">Tahun</label>
           <select id="filter-tahun" class="form-control">
-            <option value="${thnIni}">${thnIni}</option>
-            <option value="${thnIni - 1}">${thnIni - 1}</option>
+            <option value="2026">2026</option>
+            <option value="2025">2025</option>
+            <option value="2024">2024</option>
+            <option value="2023">2023</option>
           </select>
         </div>
 
@@ -54,7 +63,7 @@ export async function renderDashboard(container, state) {
         <div class="form-group" style="margin:0; flex:1.5; min-width:180px;">
           <label style="font-size:.75rem;">Data Grafik (Metrik)</label>
           <select id="filter-metric" class="form-control">
-            ${getMetricFields(defaultTk).map(m => `<option value="${m.id}">${m.label}</option>`).join('')}
+            ${getMetricFields(defaultTemplateKey).map(m => `<option value="${m.id}" ${m.id === defaultMetric ? 'selected' : ''}>${m.label}</option>`).join('')}
           </select>
         </div>
 
@@ -83,20 +92,21 @@ export async function renderDashboard(container, state) {
   `;
 
   // 1. Inisialisasi Kalender
+  const today = new Date();
+  const startOfYear = new Date(today.getFullYear(), 0, 1);
   const fp = flatpickr("#filter-tanggal", {
     mode: "range",
     dateFormat: "Y-m-d",
-    maxDate: "today",
-    defaultDate: [tglHariIni, tglHariIni],
+    defaultDate: [startOfYear, today],
     onChange: function(selectedDates) {
       if (selectedDates.length === 2) loadAllData();
     }
   });
 
-  // 2. Event Listeners Filter
-  document.getElementById('filter-tahun').addEventListener('change', () => {
-    const y = parseInt(document.getElementById('filter-tahun').value);
-    fp.setDate([`${y}-01-01`, tglHariIni]);
+  // 2. Event Listeners
+  document.getElementById('filter-tahun').addEventListener('change', (e) => {
+    const year = parseInt(e.target.value);
+    fp.setDate([`${year}-01-01`, `${year}-12-31`]);
     loadAllData();
   });
 
@@ -105,16 +115,17 @@ export async function renderDashboard(container, state) {
   if (isAdmin) {
     document.getElementById('filter-ruangan').addEventListener('change', (e) => {
       const sel = e.target;
-      if(sel.value !== 'ALL') {
-        const tk = sel.options[sel.selectedIndex].getAttribute('data-tk');
-        // Ganti metrik sesuai ruangan yang dipilih
-        document.getElementById('filter-metric').innerHTML = getMetricFields(tk).map(m => `<option value="${m.id}">${m.label}</option>`).join('');
-      }
+      const tk = sel.options[sel.selectedIndex].getAttribute('data-tk');
+      const defaultM = DEFAULT_METRICS[tk] || getMetricFields(tk)[0]?.id;
+      
+      // Ganti dropdown metrik sesuai ruangan
+      document.getElementById('filter-metric').innerHTML = getMetricFields(tk).map(m => 
+        `<option value="${m.id}" ${m.id === defaultM ? 'selected' : ''}>${m.label}</option>`
+      ).join('');
       loadAllData();
     });
   }
 
-  // Event Modal Close
   document.getElementById('btn-close-modal').addEventListener('click', () => {
     document.getElementById('modal-chart').close();
   });
@@ -140,7 +151,7 @@ export async function renderDashboard(container, state) {
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true });
 
-    if (valRuangan !== 'ALL') query = query.eq('ruangan_id', valRuangan);
+    if (valRuangan) query = query.eq('ruangan_id', valRuangan);
 
     const { data, error } = await query;
 
@@ -151,10 +162,12 @@ export async function renderDashboard(container, state) {
 
     // Tentukan ruangan mana saja yang mau digambar
     let ruanganToDraw = [];
-    if (valRuangan === 'ALL') {
-      ruanganToDraw = ruanganList;
+    if (!valRuangan && isAdmin) {
+       // (Tidak dipakai karena admin selalu pilih 1 ruangan di kode ini)
+       ruanganToDraw = listRuangan; 
     } else {
-      ruanganToDraw = [ruanganList.find(r => r.id == valRuangan)];
+      const r = listRuangan.find(ru => ru.id == valRuangan) || state.ruangan;
+      ruanganToDraw = [r];
     }
 
     grid.innerHTML = ''; // Bersihkan loading
@@ -182,7 +195,13 @@ export async function renderDashboard(container, state) {
         return lap ? (lap.data[metricId] || 0) : 0;
       });
 
-      const formattedLabels = labels.map(l => new Date(l).toLocaleDateString('id-ID', { day:'2-digit', month:'short'}));
+      // Format label tanggal (Jika setahun full, pakai nama bulan)
+      const diffDays = (dates[1] - dates[0]) / (1000 * 60 * 60 * 24);
+      const formattedLabels = labels.map(l => {
+        const d = new Date(l);
+        if (diffDays > 90) return d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
+        return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+      });
 
       // Gambar Mini Chart
       setTimeout(() => {
@@ -199,7 +218,7 @@ export async function renderDashboard(container, state) {
               borderWidth: 2,
               fill: true,
               tension: 0.3,
-              pointRadius: 2
+              pointRadius: diffDays > 90 ? 0 : 2 // Sembunyikan titik jika data terlalu banyak
             }]
           },
           options: {
@@ -211,8 +230,11 @@ export async function renderDashboard(container, state) {
             }
           }
         });
-      }, 100 * index); // Delay sedikit agar rendering halus
+      }, 100 * index);
     });
+    
+    // Simpan data untuk export
+    container.dataset.rawData = JSON.stringify(data);
   }
 
   // 4. Fungsi Buka Pop-up Full Screen
@@ -233,10 +255,10 @@ export async function renderDashboard(container, state) {
         const values = data.map(d => d.data[metricId] || 0);
         const formattedLabels = labels.map(l => new Date(l).toLocaleDateString('id-ID', { day:'2-digit', month:'short'}));
         
-        if (modalChart) modalChart.destroy();
+        if (myChart) myChart.destroy();
         const ctx = document.getElementById('popupChart').getContext('2d');
         
-        modalChart = new Chart(ctx, {
+        myChart = new Chart(ctx, {
           type: 'line',
           data: {
             labels: formattedLabels,
