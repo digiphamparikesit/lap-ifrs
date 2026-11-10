@@ -148,6 +148,7 @@ export const TEMPLATES = {
       // { id: 'jumlah_pasien_ruangan_intermediate_upss_', label: 'Jumlah Pasien Ruangan Intermediate (UPSS)', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
     ],
   },
+};
 
 // ==========================================
 // FUNGSI BANTU (JANGAN DIHAPUS)
