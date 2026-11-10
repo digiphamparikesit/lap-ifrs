@@ -12,12 +12,12 @@ export async function renderLaporanPelayanan(container, state) {
     listRuangan = data || [];
   }
 
-  // Tampilan Filter
+    // Tampilan Filter
   container.innerHTML = `
-    <div class="dashboard-header">
-      <h2 class="page-title">Laporan Pelayanan</h2>
+    <div class="dashboard-header" style="position: sticky; top: 0; z-index: 10; background: var(--gray-50); padding-top: 10px; margin-top: -10px; padding-bottom: 10px;">
+      <h2 class="page-title" style="margin-top: 10px;">Laporan Pelayanan</h2>
       
-      <div class="filter-bar" style="align-items:flex-end; display:flex; flex-wrap:wrap; gap:12px; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom:24px;">
+      <div class="filter-bar" style="align-items:flex-end; display:flex; flex-wrap:wrap; gap:12px; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom: 10px; box-shadow: var(--shadow-sm);">
         
         ${isAdmin ? `
         <div class="form-group" style="margin:0; flex:1; min-width:200px;">
@@ -51,8 +51,9 @@ export async function renderLaporanPelayanan(container, state) {
 
     <div class="table-card">
       <div class="table-responsive">
+        <!-- Tambahkan style sticky untuk header tabel (thead) -->
         <table class="data-table" id="table-laporan">
-          <thead id="table-head"></thead>
+          <thead id="table-head" style="position: sticky; top: 190px; z-index: 5; background: var(--gray-50);"></thead>
           <tbody id="table-body">
             <tr><td colspan="10" style="text-align:center;">Memuat data...</td></tr>
           </tbody>
