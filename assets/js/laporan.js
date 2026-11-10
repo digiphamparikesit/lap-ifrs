@@ -53,13 +53,18 @@ export async function renderFormInput(container, state) {
     
     let formHTML = '';
     groups.forEach(grup => {
-      formHTML += `<div class="form-section"><h3 class="section-title">${grup}</h3><div class="section-body">`;
+      // Gunakan CSS Grid bawaan untuk membagi kiri-kanan
+      formHTML += `<div class="form-section" style="grid-column: 1 / -1;"><h3 class="section-title">${grup}</h3><div class="section-body" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px;">`;
+      
       template.fields.forEach(f => {
         if (f.group !== grup) return;
 
+        // Jika field adalah 'Petugas', buat lebar penuh (span 2 kolom)
+        const isFullWidth = f.type === 'petugas' ? 'grid-column: 1 / -1;' : '';
+
         if (f.type === 'petugas') {
           formHTML += `
-            <div class="form-group full-width">
+            <div class="form-group" style="${isFullWidth}">
               <label>${f.label} <span class="required">*</span></label>
               <div class="search-petugas-wrap">
                 <input type="text" id="search-petugas" placeholder="Ketik nama petugas…" autocomplete="off" />
@@ -78,15 +83,15 @@ export async function renderFormInput(container, state) {
 
         if (f.type === 'select') {
           const opts = f.opsi.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
-          inputHTML = `<select id="field-${f.id}" name="${f.id}" ${req}><option value="">— Pilih —</option>${opts}</select>`;
+          inputHTML = `<select id="field-${f.id}" name="${f.id}" ${req} class="form-control"><option value="">— Pilih —</option>${opts}</select>`;
         } else {
           let defVal = '';
           if (f.type === 'date') defVal = new Date().toISOString().split('T')[0];
-          inputHTML = `<input type="${f.type}" id="field-${f.id}" name="${f.id}" value="${defVal}" ${req} ${f.min !== undefined ? `min="${f.min}"` : ''} />`;
+          inputHTML = `<input type="${f.type}" id="field-${f.id}" name="${f.id}" value="${defVal}" ${req} ${f.min !== undefined ? `min="${f.min}"` : ''} class="form-control" />`;
         }
 
         formHTML += `
-          <div class="form-group">
+          <div class="form-group" style="${isFullWidth}">
             <label for="field-${f.id}">${f.label}${reqStar}</label>
             ${inputHTML}
           </div>
