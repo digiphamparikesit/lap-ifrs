@@ -3,6 +3,7 @@ import { supabase } from './supabase.js';
 import { renderFormInput } from './laporan.js'; // Import ditaruh di paling atas
 import { renderDaftarStaff } from './staff.js';           // <-- TAMBAHKAN INI
 import { renderPengaturan as loadPengaturan } from './pengaturan.js'; // <-- TAMBAHKAN INI
+import { renderDashboard as loadDashboard } from './dashboard.js'; // <-- TAMBAHKAN INI (BARIS BARU)
 
 // State global user
 export const state = {
@@ -105,12 +106,8 @@ async function handleRoute() {
    3. RENDER FUNCTIONS (PLACEHOLDER & IMPORT)
    ========================================================= */
 async function renderDashboard() {
-  view.innerHTML = `
-    <div style="background:#fff; padding:24px; border-radius:12px; border:1px solid var(--gray-200); text-align:center; margin-top:20px;">
-      <h2 style="color:var(--green-700);">🚧 Modul Dashboard</h2>
-      <p style="color:var(--gray-500);">Grafik dan ringkasan pelayanan akan tampil di sini (Fase 5).</p>
-    </div>
-  `;
+  // Panggil fungsi dashboard yang sesungguhnya
+  await loadDashboard(view, state);
 }
 
 async function renderInput() {
