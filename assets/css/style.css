@@ -352,7 +352,7 @@ h1, h2, h3 { margin: 0 0 .5rem; font-weight: 700; }
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--gray-200);
   overflow: hidden;
-  max-width: 800px;
+  width: 100%; /* Rata kiri kanan */
   margin: 0 auto;
 }
 
@@ -436,3 +436,9 @@ dialog {
 /* Kalender Flatpickr Custom */
 .flatpickr-calendar { font-family: var(--font) !important; box-shadow: var(--shadow-md) !important; }
 .flatpickr-day.selected { background: var(--green-600) !important; border-color: var(--green-600) !important; }
+
+/* Memastikan area konten form memenuhi lebar layar */
+#view {
+  width: 100%;
+  max-width: 100%;
+}
