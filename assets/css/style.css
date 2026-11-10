@@ -716,3 +716,15 @@ dialog {
   text-align: right;
   font-variant-numeric: tabular-nums; /* Angka sejajar lurus */
 }
+
+/* =========================================================
+   STICKY HEADER TABEL
+   ========================================================= */
+.data-table th {
+  position: sticky;
+  top: 0; /* Akan menempel di paling atas layar */
+  z-index: 100;
+  /* Pastikan warnanya solid agar data di bawahnya tidak tembus pandang */
+  background-color: var(--green-600); 
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Sedikit bayangan */
+}
