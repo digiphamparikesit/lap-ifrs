@@ -5,112 +5,131 @@ import { getTemplate, getGroups } from './templates.js';
 /* =========================================================
    1. RENDER FORM DINAMIS
    ========================================================= */
-// Perhatikan tambahan parameter (state) di sini
 export async function renderFormInput(container, state) {
-  const t = state.ruangan?.template_key;
-  if (!t) {
-    container.innerHTML = `<div class="login-error">Template ruangan tidak ditemukan.</div>`;
-    return;
-  }
-
-  const template = getTemplate(t);
-  const groups = getGroups(t);
-
+  const isAdmin = state.profile.role === 'admin';
+  
   // Tampilkan loading
   container.innerHTML = `<div class="loading-state"><div class="spinner spinner-dark"></div> Memuat form…</div>`;
 
-  let daftarStaff = [];
-
-  try {
-    // Ambil staff yang terdaftar di ruangan ini (untuk user biasa)
-    if (state.profile.role === 'admin') {
-      const { data } = await supabase.from('staff').select('id, nama').eq('aktif', true);
-      daftarStaff = data || [];
-    } else {
-      // Ambil ruangan_id dari profile (lebih aman daripada state.ruangan.id)
-      const rId = state.profile.ruangan_id; 
-      
-      const { data, error } = await supabase
-        .from('staff_ruangan')
-        .select('staff(id, nama)')
-        .eq('ruangan_id', rId);
-        
-      if (error) throw error;
-      daftarStaff = (data || []).map(s => s.staff).filter(Boolean);
-    }
-  } catch (err) {
-    console.error("Gagal load staff:", err);
-    container.innerHTML = `<div class="login-error">Gagal memuat data staff: ${err.message}</div>`;
-    return;
+  // Jika Admin, ambil semua daftar ruangan (kecuali ADMIN)
+  let listRuangan = [];
+  if (isAdmin) {
+    const { data } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
+    listRuangan = data || [];
   }
 
-  // Generate HTML Form
-  let formHTML = `<form id="form-laporan" class="form-laporan">`;
+  // Tentukan template default
+  const defaultTemplateKey = isAdmin ? (listRuangan[0]?.template_key || 'igd') : state.ruangan?.template_key;
   
-  // Render per grup
-  groups.forEach(grup => {
-    formHTML += `<div class="form-section"><h3 class="section-title">${grup}</h3><div class="section-body">`;
-    
-    template.fields.forEach(f => {
-      if (f.group !== grup) return;
+  // Render Kerangka Form (termasuk dropdown khusus admin)
+  let headerHTML = '';
+  if (isAdmin) {
+    const opts = listRuangan.map(r => `<option value="${r.template_key}">${r.nama}</option>`).join('');
+    headerHTML = `
+      <div class="form-group full-width" style="background:var(--green-50); padding:16px; border-radius:8px; margin-bottom:20px; border:1px solid var(--green-200);">
+        <label style="color:var(--green-800); font-weight:bold;">Pilih Ruangan (Mode Admin)</label>
+        <select id="admin-select-ruangan" class="form-control" style="margin-top:8px;">
+          ${opts}
+        </select>
+      </div>
+    `;
+  }
 
-      // Khusus field Petugas (Custom Searchable Checklist)
-      if (f.type === 'petugas') {
-        formHTML += `
-          <div class="form-group full-width">
-            <label>${f.label} <span class="required">*</span></label>
-            <div class="search-petugas-wrap">
-              <input type="text" id="search-petugas" placeholder="Ketik nama petugas…" autocomplete="off" />
-              <div id="hasil-petugas" class="dropdown-petugas" hidden></div>
+  container.innerHTML = `
+    <form id="form-laporan" class="form-laporan">
+      ${headerHTML}
+      <div id="dynamic-form-fields"></div>
+      <div class="form-actions">
+        <button type="submit" class="btn-primary" id="btn-simpan">Simpan Laporan</button>
+      </div>
+    </form>
+  `;
+
+  // Fungsi untuk menggambar field berdasarkan template yang dipilih
+  const drawFields = async (templateKey) => {
+    const template = getTemplate(templateKey);
+    const groups = getGroups(templateKey);
+    const dynamicContainer = document.getElementById('dynamic-form-fields');
+    
+    let formHTML = '';
+    groups.forEach(grup => {
+      formHTML += `<div class="form-section"><h3 class="section-title">${grup}</h3><div class="section-body">`;
+      template.fields.forEach(f => {
+        if (f.group !== grup) return;
+
+        if (f.type === 'petugas') {
+          formHTML += `
+            <div class="form-group full-width">
+              <label>${f.label} <span class="required">*</span></label>
+              <div class="search-petugas-wrap">
+                <input type="text" id="search-petugas" placeholder="Ketik nama petugas…" autocomplete="off" />
+                <div id="hasil-petugas" class="dropdown-petugas" hidden></div>
+              </div>
+              <div id="selected-petugas" class="selected-petugas-list"></div>
+              <input type="hidden" id="field-petugas" required />
             </div>
-            <div id="selected-petugas" class="selected-petugas-list"></div>
-            <input type="hidden" id="field-petugas" required />
+          `;
+          return;
+        }
+
+        let inputHTML = '';
+        const req = f.required ? 'required' : '';
+        const reqStar = f.required ? ' <span class="required">*</span>' : '';
+
+        if (f.type === 'select') {
+          const opts = f.opsi.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
+          inputHTML = `<select id="field-${f.id}" name="${f.id}" ${req}><option value="">— Pilih —</option>${opts}</select>`;
+        } else {
+          let defVal = '';
+          if (f.type === 'date') defVal = new Date().toISOString().split('T')[0];
+          inputHTML = `<input type="${f.type}" id="field-${f.id}" name="${f.id}" value="${defVal}" ${req} ${f.min !== undefined ? `min="${f.min}"` : ''} />`;
+        }
+
+        formHTML += `
+          <div class="form-group">
+            <label for="field-${f.id}">${f.label}${reqStar}</label>
+            ${inputHTML}
           </div>
         `;
-        return;
-      }
-
-      // Render field biasa (number, date, time, select)
-      let inputHTML = '';
-      const req = f.required ? 'required' : '';
-      const reqStar = f.required ? ' <span class="required">*</span>' : '';
-
-      if (f.type === 'select') {
-        const opts = f.opsi.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
-        inputHTML = `<select id="field-${f.id}" name="${f.id}" ${req}><option value="">— Pilih —</option>${opts}</select>`;
-      } else {
-        // Isi default tanggal dengan hari ini
-        let defVal = '';
-        if (f.type === 'date') {
-          defVal = new Date().toISOString().split('T')[0];
-        }
-        inputHTML = `<input type="${f.type}" id="field-${f.id}" name="${f.id}" value="${defVal}" ${req} ${f.min !== undefined ? `min="${f.min}"` : ''} />`;
-      }
-
-      formHTML += `
-        <div class="form-group">
-          <label for="field-${f.id}">${f.label}${reqStar}</label>
-          ${inputHTML}
-        </div>
-      `;
+      });
+      formHTML += `</div></div>`;
     });
+
+    dynamicContainer.innerHTML = formHTML;
+
+    // Ambil daftar staff (jika admin, ambil staff untuk ruangan yang dipilih)
+    let daftarStaff = [];
+    if (isAdmin) {
+      const r = listRuangan.find(ru => ru.template_key === templateKey);
+      if (r) {
+        const { data } = await supabase.from('staff_ruangan').select('staff(id, nama)').eq('ruangan_id', r.id);
+        daftarStaff = (data || []).map(s => s.staff).filter(Boolean);
+      }
+    } else {
+      const { data } = await supabase.from('staff_ruangan').select('staff(id, nama)').eq('ruangan_id', state.profile.ruangan_id);
+      daftarStaff = (data || []).map(s => s.staff).filter(Boolean);
+    }
+
+    initPetugasSearch(daftarStaff);
     
-    formHTML += `</div></div>`; // end section
-  });
+    // Pasang event listener submit dengan template yang sesuai
+    const formEl = document.getElementById('form-laporan');
+    formEl.onsubmit = (e) => {
+      // Cari ID ruangan asli jika admin, jika bukan pakai state ruangan
+      const rId = isAdmin ? listRuangan.find(ru => ru.template_key === templateKey)?.id : state.profile.ruangan_id;
+      handleSubmit(e, template, state, rId);
+    };
+  };
 
-  formHTML += `
-    <div class="form-actions">
-      <button type="submit" class="btn-primary" id="btn-simpan">Simpan Laporan</button>
-    </div>
-  </form>`;
+  // Gambar pertama kali
+  await drawFields(defaultTemplateKey);
 
-  container.innerHTML = formHTML;
-
-  // Init Custom Petugas Component
-  initPetugasSearch(daftarStaff);
-
-  // Handle Submit
-  document.getElementById('form-laporan').addEventListener('submit', (e) => handleSubmit(e, template, state));
+  // Jika admin, pasang event listener jika dropdown ruangan diganti
+  if (isAdmin) {
+    document.getElementById('admin-select-ruangan').addEventListener('change', async (e) => {
+      await drawFields(e.target.value);
+    });
+  }
 }
 
 /* =========================================================
@@ -194,7 +213,7 @@ function initPetugasSearch(daftarStaff) {
 /* =========================================================
    3. PROSES SIMPAN LAPORAN
    ========================================================= */
-async function handleSubmit(e, template, state) {
+async function handleSubmit(e, template, state, finalRId) {
   e.preventDefault();
   const btn = document.getElementById('btn-simpan');
   btn.disabled = true;
@@ -227,7 +246,7 @@ async function handleSubmit(e, template, state) {
     if (petugasIds.length === 0) throw new Error("Pilih minimal 1 petugas.");
     if (!tanggal) throw new Error("Tanggal harus diisi.");
 
-    const rId = state.ruangan?.id || state.profile?.ruangan_id;
+    const rId = finalRId || state.profile?.ruangan_id;
 
     const payload = {
       ruangan_id: rId,
