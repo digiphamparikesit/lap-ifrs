@@ -110,10 +110,10 @@ export async function renderPresensi(container, state) {
     let valRuangan = isAdmin ? document.getElementById('filter-ruangan').value : state.profile.ruangan_id;
     const valStaffId = document.getElementById('filter-staff').value;
 
-    // Query dasar
+    // Query dasar: Hanya mengambil petugas_ids (UUID)
     let query = supabase.from('laporan')
-      .select('tanggal, petugas_ids, data')
-      .eq('ruangan_id', valRuangan) // Tetap filter ruangan agar pencarian lebih cepat
+      .select('tanggal, petugas_ids')
+      .eq('ruangan_id', valRuangan)
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: false });
@@ -138,58 +138,20 @@ export async function renderPresensi(container, state) {
       if (tanggal > rekap[clean].lastDate) rekap[clean].lastDate = tanggal;
     };
 
-    // Filter data
+    // Filter data: MURNI HANYA MEMBACA UUID
     data.forEach(lap => {
-      // A. Logika Pencarian Staff Spesifik
-      if (valStaffId) {
-        const targetName = staffMap[valStaffId];
-        let isHadir = false;
-
-        // Cek UUID
-        if (lap.petugas_ids && lap.petugas_ids.includes(valStaffId)) {
-          isHadir = true;
-        }
-        
-        // Cek Teks (Jika UUID kosong atau data lama)
-        if (!isHadir && lap.data) {
-           // Ambil nama depan target (misal: "desi" dari "Desi Ana")
-           const kataPertamaTarget = targetName.toLowerCase().split(' ')[0];
-
-           Object.values(lap.data).forEach(val => {
-              if (typeof val === 'string' && val.trim() !== '' && !isNaN(val)) {
-                 // PECAH TEKS BERDASARKAN KOMA
-                 // (Misal: "Febrianto, Risma Saputri" menjadi ["Febrianto", "Risma Saputri"])
-                 const listNama = val.split(',').map(s => s.trim());
-                 
-                 // Cek tiap potongan nama
-                 listNama.forEach(nama => {
-                    if (nama.toLowerCase().includes(kataPertamaTarget)) {
-                       isHadir = true;
-                    }
-                 });
-              }
-           });
-        }
-
-        if (isHadir) tambahRekap(targetName, lap.tanggal);
-      } 
-      
-      // B. Logika Rekap Semua Staff (Jika tidak ada filter staff)
-      else {
-        // UUID
-        if (lap.petugas_ids && lap.petugas_ids.length > 0) {
-          lap.petugas_ids.forEach(id => {
+      if (lap.petugas_ids && lap.petugas_ids.length > 0) {
+        lap.petugas_ids.forEach(id => {
+          // Jika ada filter staff, cek apakah ID cocok
+          if (valStaffId) {
+            if (id === valStaffId) {
+              tambahRekap(staffMap[id], lap.tanggal);
+            }
+          } else {
+            // Jika tidak ada filter, masukkan semua staff yang bertugas
             tambahRekap(staffMap[id] || 'Staff Baru', lap.tanggal);
-          });
-        }
-        
-        // Teks dari JSON (Migrasi Baru)
-        if (lap.data && lap.data.nama_petugas_teks) {
-          const listNama = lap.data.nama_petugas_teks.split('|').map(s => s.trim());
-          listNama.forEach(nama => {
-            if (nama) tambahRekap(nama, lap.tanggal);
-          });
-        }
+          }
+        });
       }
     });
 
