@@ -95,7 +95,7 @@ export async function renderPencarianStaff(container, state) {
 
     // Ambil semua laporan di rentang tanggal tersebut (SEMUA RUANGAN)
     const { data, error } = await supabase.from('laporan')
-      .select('ruangan_id, tanggal, petugas_ids, data, ruangan(nama)')
+      .select('ruangan_id, tanggal, petugas_ids, ruangan(nama)')
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: false });
@@ -107,29 +107,13 @@ export async function renderPencarianStaff(container, state) {
 
     const rekap = {}; 
     
+    // MURNI HANYA MEMBACA UUID
     data.forEach(lap => {
       let isHadir = false;
 
-      // 1. Cek berdasarkan UUID (Data Baru)
+      // Cek apakah staffId ada di dalam array petugas_ids
       if (lap.petugas_ids && lap.petugas_ids.includes(staffId)) {
         isHadir = true;
-      }
-      
-       // 2. Cek berdasarkan Teks di JSON (Data Lama dari Excel)
-      if (!isHadir && lap.data) {
-        const namaDepan = staffName.toLowerCase().split(',')[0].trim().split(' ')[0];
-
-        Object.values(lap.data).forEach(val => {
-          if (typeof val === 'string' && val.trim() !== '' && isNaN(val)) {
-             const listNama = val.split(',').map(s => s.trim());
-             
-             listNama.forEach(nama => {
-                if (nama.toLowerCase().includes(namaDepan)) {
-                   isHadir = true;
-                }
-             });
-          }
-        });
       }
 
       if (isHadir) {
