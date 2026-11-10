@@ -2,300 +2,265 @@
 import { supabase } from './supabase.js';
 import { getTemplate, getMetricFields } from './templates.js';
 
-let myChart = null;
+let mainChart = null;
+let modalChart = null;
 
 export async function renderDashboard(container, state) {
   const isAdmin = state.profile.role === 'admin';
   
-  // 1. Ambil semua ruangan
+  // Ambil daftar ruangan & staff
   const { data: ruanganList } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
-  
-  // 2. Ambil semua staff untuk mapping nama
   const { data: staffList } = await supabase.from('staff').select('id, nama');
+  
   const staffMap = {};
   if (staffList) staffList.forEach(s => staffMap[s.id] = s.nama);
 
-  // 3. Tentukan Dropdown Ruangan & Metrik berdasarkan Role
-  let filterRuanganHTML = '';
-  let filterMetrikHTML = '';
-
-  if (isAdmin) {
-    // Admin: Bisa pilih ruangan (atau semua) dan semua metrik dari template IGD (sebagai default)
-    const opts = ruanganList.map(r => `<option value="${r.id}" data-tk="${r.template_key}">${r.nama}</option>`).join('');
-    filterRuanganHTML = `
-      <div class="form-group" style="margin:0; flex:1; min-width:200px;">
-        <label style="font-size:.75rem;">Pilih Ruangan</label>
-        <select id="filter-ruangan" class="form-control">
-          <option value="ALL">-- SEMUA RUANGAN (Grafik Garis) --</option>
-          ${opts}
-        </select>
-      </div>
-    `;
-    // Admin default pakai metrik dari IGD
-    filterMetrikHTML = getMetricFields('igd').map(m => `<option value="${m.id}">${m.label}</option>`).join('');
-  } else {
-    // Petugas: Terkunci ke ruangannya sendiri
-    const tk = state.ruangan.template_key;
-    filterMetrikHTML = getMetricFields(tk).map(m => `<option value="${m.id}">${m.label}</option>`).join('');
-  }
-
+  // Metrik default (untuk filter global)
+  const defaultTk = isAdmin ? 'igd' : state.ruangan.template_key;
+  
   const tglHariIni = new Date().toISOString().split('T')[0];
   const thnIni = new Date().getFullYear();
 
-  // 4. Render HTML
+  // HTML Tampilan
   container.innerHTML = `
     <div class="dashboard-header">
       <h2 class="page-title">Dashboard Pelayanan</h2>
       
-      <div class="filter-bar" style="align-items:flex-start;">
-        ${filterRuanganHTML}
+      <!-- Filter Sejajar -->
+      <div class="filter-bar" style="display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom:24px;">
         
-        <div class="form-group" style="margin:0; flex:1; min-width:200px;">
-          <label style="font-size:.75rem;">Pilih Tahun</label>
+        ${isAdmin ? `
+        <div class="form-group" style="margin:0; flex:1; min-width:150px;">
+          <label style="font-size:.75rem;">Ruangan</label>
+          <select id="filter-ruangan" class="form-control">
+            <option value="ALL">-- Semua Ruangan --</option>
+            ${ruanganList.map(r => `<option value="${r.id}" data-tk="${r.template_key}">${r.nama}</option>`).join('')}
+          </select>
+        </div>` : ''}
+
+        <div class="form-group" style="margin:0; flex:1; min-width:120px;">
+          <label style="font-size:.75rem;">Tahun</label>
           <select id="filter-tahun" class="form-control">
-            <option value="${thnIni}">Tahun ${thnIni}</option>
-            <option value="${thnIni - 1}">Tahun ${thnIni - 1}</option>
+            <option value="${thnIni}">${thnIni}</option>
+            <option value="${thnIni - 1}">${thnIni - 1}</option>
           </select>
         </div>
 
-        <div class="form-group" style="margin:0; flex:1.5; min-width:250px;">
-          <label style="font-size:.75rem;">Rentang Tanggal (Mulai - Selesai)</label>
-          <input type="text" id="filter-tanggal" class="form-control" placeholder="Pilih rentang tanggal..." readonly>
+        <div class="form-group" style="margin:0; flex:2; min-width:250px;">
+          <label style="font-size:.75rem;">Rentang Tanggal</label>
+          <input type="text" id="filter-tanggal" class="form-control" placeholder="Pilih rentang..." readonly>
         </div>
 
-        <div class="form-group" style="margin:0; flex:1; min-width:200px;">
-          <label style="font-size:.75rem;">Data Grafik</label>
+        <div class="form-group" style="margin:0; flex:1.5; min-width:180px;">
+          <label style="font-size:.75rem;">Data Grafik (Metrik)</label>
           <select id="filter-metric" class="form-control">
-            ${filterMetrikHTML}
+            ${getMetricFields(defaultTk).map(m => `<option value="${m.id}">${m.label}</option>`).join('')}
           </select>
         </div>
-      </div>
-      
-      <div style="margin-top:12px; display:flex; gap:8px;">
-        <button id="btn-export-excel" class="btn-secondary">📊 Export Excel</button>
-        <button id="btn-export-pdf" class="btn-secondary">📄 Export PDF</button>
+
+        <div style="display:flex; gap:8px;">
+          <button id="btn-export-excel" class="btn-secondary" style="padding: 8px 12px;">📊 Excel</button>
+          <button id="btn-export-pdf" class="btn-secondary" style="padding: 8px 12px;">📄 PDF</button>
+        </div>
       </div>
     </div>
 
-    <div class="chart-card" style="margin-top:20px;">
-      <div class="chart-wrapper" style="height:400px;"><canvas id="mainChart"></canvas></div>
+    <!-- Area Grid Grafik -->
+    <div id="charts-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:20px;">
+      <!-- Grafik akan di-render di sini -->
     </div>
+
+    <!-- Modal Pop-up Grafik Full Screen -->
+    <dialog id="modal-chart" style="width:90vw; max-width:1200px; padding:20px; border-radius:12px; border:none; box-shadow:0 10px 40px rgba(0,0,0,.2);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 id="modal-title" style="margin:0; color:var(--green-800);">Detail Grafik</h3>
+        <button id="btn-close-modal" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--gray-500);">×</button>
+      </div>
+      <div style="position:relative; height:70vh; width:100%;">
+        <canvas id="popupChart"></canvas>
+      </div>
+    </dialog>
   `;
 
-  // 5. Inisialisasi Flatpickr (2 Kalender)
+  // 1. Inisialisasi Kalender
   const fp = flatpickr("#filter-tanggal", {
     mode: "range",
     dateFormat: "Y-m-d",
     maxDate: "today",
-    defaultDate: [tglHariIni, tglHariIni], // Default: hari ini s/d hari ini
+    defaultDate: [tglHariIni, tglHariIni],
     onChange: function(selectedDates) {
-      if (selectedDates.length === 2) {
-        loadData();
-      }
+      if (selectedDates.length === 2) loadAllData();
     }
   });
 
-  // 6. Event Listener
+  // 2. Event Listeners Filter
   document.getElementById('filter-tahun').addEventListener('change', () => {
     const y = parseInt(document.getElementById('filter-tahun').value);
-    // Set default kalender ke awal tahun s/d hari ini
     fp.setDate([`${y}-01-01`, tglHariIni]);
-    loadData();
+    loadAllData();
   });
 
-  document.getElementById('filter-metric').addEventListener('change', loadData);
+  document.getElementById('filter-metric').addEventListener('change', loadAllData);
   
   if (isAdmin) {
     document.getElementById('filter-ruangan').addEventListener('change', (e) => {
       const sel = e.target;
-      const tk = sel.options[sel.selectedIndex].getAttribute('data-tk') || 'igd';
-      
-      // Update metrik
-      document.getElementById('filter-metric').innerHTML = getMetricFields(tk).map(m => `<option value="${m.id}">${m.label}</option>`).join('');
-      loadData();
+      if(sel.value !== 'ALL') {
+        const tk = sel.options[sel.selectedIndex].getAttribute('data-tk');
+        // Ganti metrik sesuai ruangan yang dipilih
+        document.getElementById('filter-metric').innerHTML = getMetricFields(tk).map(m => `<option value="${m.id}">${m.label}</option>`).join('');
+      }
+      loadAllData();
     });
   }
 
-  // Fungsi Utama Mengambil & Menggambar
-  async function loadData() {
+  // Event Modal Close
+  document.getElementById('btn-close-modal').addEventListener('click', () => {
+    document.getElementById('modal-chart').close();
+  });
+
+  // 3. Fungsi Utama Load Data
+  async function loadAllData() {
     const dates = fp.selectedDates;
     if (dates.length !== 2) return;
     
     const startDate = dates[0].toISOString().split('T')[0];
     const endDate = dates[1].toISOString().split('T')[0];
     const metricId = document.getElementById('filter-metric').value;
+    const grid = document.getElementById('charts-grid');
     
-    let ruanganFilter = "";
-    let selectedRuangan = null;
+    grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat grafik...</div>`;
 
-    if (isAdmin) {
-      const val = document.getElementById('filter-ruangan').value;
-      if (val !== 'ALL') {
-        selectedRuangan = ruanganList.find(r => r.id === val);
-        ruanganFilter = `&ruangan_id=eq.${val}`; 
-      }
-    } else {
-      selectedRuangan = state.ruangan;
-      ruanganFilter = `&ruangan_id=eq.${state.profile.ruangan_id}`;
-    }
-
-    // Query ke Supabase (Ambil data mentah)
+    const valRuangan = isAdmin ? document.getElementById('filter-ruangan').value : state.profile.ruangan_id;
+    
+    // Query dasar
     let query = supabase.from('laporan')
-      .select('id, tanggal, shift, data, petugas_ids, ruangan_id')
+      .select('ruangan_id, tanggal, data')
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true });
 
-    if (ruanganFilter) query = query.filter('ruangan_id', 'eq', ruanganFilter.split('eq.')[1]);
+    if (valRuangan !== 'ALL') query = query.eq('ruangan_id', valRuangan);
 
     const { data, error } = await query;
 
     if (error) {
-      console.error(error);
+      grid.innerHTML = `<div class="login-error">Gagal memuat data: ${error.message}</div>`;
       return;
     }
 
-    // --- Olah Data untuk Chart ---
-    let chartLabels = [];
-    let datasets = [];
-
-    if (isAdmin && document.getElementById('filter-ruangan').value === 'ALL') {
-      // MODE ADMIN ALL: Grafik Multi-Line per Ruangan
-      chartLabels = [...new Set(data.map(d => d.tanggal))].sort();
-      
-      const colors = ['#16a34a', '#2563eb', '#d97706', '#dc2626', '#7c3aed', '#db2777', '#0d9488'];
-      
-      datasets = ruanganList.map((r, i) => {
-        const dataRuangan = data.filter(d => d.ruangan_id === r.id);
-        
-        // Sesuaikan nilai
-        const dataValues = chartLabels.map(tgl => {
-          const lap = dataRuangan.find(d => d.tanggal === tgl);
-          return lap ? (lap.data[metricId] || 0) : 0;
-        });
-
-        // Sembunyikan garis jika tidak ada laporan sama sekali di rentang ini
-        const isHidden = dataRuangan.length === 0;
-
-        return {
-          label: r.nama,
-          data: dataValues,
-          borderColor: colors[i % colors.length],
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          tension: 0.3,
-          hidden: isHidden
-        };
-      });
+    // Tentukan ruangan mana saja yang mau digambar
+    let ruanganToDraw = [];
+    if (valRuangan === 'ALL') {
+      ruanganToDraw = ruanganList;
     } else {
-      // MODE PETUGAS / ADMIN SPESIFIK: Satu Garis
-      chartLabels = data.map(d => d.tanggal);
-      const template = getTemplate(selectedRuangan ? selectedRuangan.template_key : 'igd');
-      
-      datasets = [{
-        label: template.fields.find(f=>f.id===metricId)?.label || 'Data',
-        data: data.map(d => (d.data[metricId] || 0)),
-        borderColor: '#16a34a',
-        backgroundColor: 'rgba(22, 163, 74, 0.1)',
-        borderWidth: 3,
-        fill: true,
-        tension: 0.3
-      }];
+      ruanganToDraw = [ruanganList.find(r => r.id == valRuangan)];
     }
 
-    // Ganti Label Tanggal jadi (dd MMM)
-    const formattedLabels = chartLabels.map(l => {
-      const d = new Date(l);
-      return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-    });
+    grid.innerHTML = ''; // Bersihkan loading
 
-    // --- Gambar Chart ---
-    if (myChart) myChart.destroy();
-    const ctx = document.getElementById('mainChart').getContext('2d');
-    
-    myChart = new Chart(ctx, {
-      type: 'line',
-      data: { labels: formattedLabels, datasets: datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: 'bottom' } },
-        scales: {
-          y: { beginAtZero: true, grid: { borderDash: [2, 4] } },
-          x: { grid: { display: false } }
-        }
-      }
-    });
+    // Loop setiap ruangan untuk membuat kotak grafik
+    ruanganToDraw.forEach((r, index) => {
+      // Saring data khusus ruangan ini
+      const dataRuangan = data.filter(d => d.ruangan_id === r.id);
+      
+      // Buat Canvas Box
+      const boxId = `chart-box-${r.id}`;
+      grid.innerHTML += `
+        <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDate}')">
+          <h4 style="margin-top:0; color:var(--green-800);">${r.nama}</h4>
+          <div style="position:relative; height:250px;">
+            <canvas id="${boxId}"></canvas>
+          </div>
+        </div>
+      `;
 
-    // Simpan data untuk export
-    container.dataset.rawData = JSON.stringify(data);
-    container.dataset.staffMap = JSON.stringify(staffMap);
-    container.dataset.startDate = startDate;
-    container.dataset.endDate = endDate;
+      // Siapkan data Grafik
+      const labels = [...new Set(dataRuangan.map(d => d.tanggal))].sort();
+      const values = labels.map(tgl => {
+        const lap = dataRuangan.find(d => d.tanggal === tgl);
+        return lap ? (lap.data[metricId] || 0) : 0;
+      });
+
+      const formattedLabels = labels.map(l => new Date(l).toLocaleDateString('id-ID', { day:'2-digit', month:'short'}));
+
+      // Gambar Mini Chart
+      setTimeout(() => {
+        const ctx = document.getElementById(boxId).getContext('2d');
+        new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: formattedLabels,
+            datasets: [{
+              label: document.getElementById('filter-metric').options[document.getElementById('filter-metric').selectedIndex].text,
+              data: values,
+              borderColor: '#16a34a',
+              backgroundColor: 'rgba(22, 163, 74, 0.1)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 2
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: { 
+              y: { beginAtZero: true, ticks:{font:{size:10}} }, 
+              x: { ticks:{font:{size:10}} } 
+            }
+          }
+        });
+      }, 100 * index); // Delay sedikit agar rendering halus
+    });
   }
 
-  // Event Export
-  document.getElementById('btn-export-excel').addEventListener('click', () => {
-    exportData(container, 'excel', isAdmin, document.getElementById('filter-ruangan')?.value, ruanganList);
-  });
-  document.getElementById('btn-export-pdf').addEventListener('click', () => {
-    exportData(container, 'pdf', isAdmin, document.getElementById('filter-ruangan')?.value, ruanganList);
-  });
+  // 4. Fungsi Buka Pop-up Full Screen
+  window.openFullScreen = (ruanganId, ruanganNama, metricId, startDate, endDate) => {
+    const dialog = document.getElementById('modal-chart');
+    document.getElementById('modal-title').textContent = `Grafik Detail: ${ruanganNama}`;
+    dialog.showModal();
 
-  // Muat data pertama kali (Default: hari ini)
-  await loadData();
-}
+    // Ambil data ulang khusus untuk grafik besar
+    supabase.from('laporan')
+      .select('tanggal, data')
+      .eq('ruangan_id', ruanganId)
+      .gte('tanggal', startDate)
+      .lte('tanggal', endDate)
+      .order('tanggal', { ascending: true })
+      .then(({ data }) => {
+        const labels = data.map(d => d.tanggal);
+        const values = data.map(d => d.data[metricId] || 0);
+        const formattedLabels = labels.map(l => new Date(l).toLocaleDateString('id-ID', { day:'2-digit', month:'short'}));
+        
+        if (modalChart) modalChart.destroy();
+        const ctx = document.getElementById('popupChart').getContext('2d');
+        
+        modalChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: formattedLabels,
+            datasets: [{
+              label: document.getElementById('filter-metric').options[document.getElementById('filter-metric').selectedIndex].text,
+              data: values,
+              borderColor: '#16a34a',
+              backgroundColor: 'rgba(22, 163, 74, 0.1)',
+              borderWidth: 4,
+              fill: true,
+              tension: 0.3,
+              pointRadius: 6,
+              pointHoverRadius: 8
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: true, position: 'top' } },
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+      });
+  };
 
-/* =========================================================
-   LOGIKA EXPORT (Dinamis Menyesuaikan Mode Grafik)
-   ========================================================= */
-function exportData(container, type, isAdmin, filterRuanganVal, ruanganList) {
-  if (!container.dataset.rawData) return alert("Tidak ada data.");
-  const data = JSON.parse(container.dataset.rawData);
-  if (data.length === 0) return alert("Data kosong di rentang tanggal ini.");
-
-  const staffMap = JSON.parse(container.dataset.staffMap);
-  
-  // Siapkan Header
-  let headers = ['Tanggal', 'Shift', 'Petugas', 'Ruangan'];
-  
-  // Kumpulkan semua key metric dari data JSONB (buang tanggal/shift)
-  const keys = Object.keys(data[0].data).filter(k => k !== 'tanggal' && k !== 'shift');
-  const labels = keys.map(k => k.replace(/_/g, ' ').toUpperCase());
-
-  headers = headers.concat(labels);
-
-  // Siapkan Body
-  const rows = data.map(d => {
-    const petugasNames = (d.petugas_ids || []).map(id => staffMap[id] || 'Unknown').join(', ');
-    const rName = ruanganList.find(r => r.id === d.ruangan_id)?.nama || '-';
-    
-    const row = [d.tanggal, d.shift || '-', petugasNames, rName];
-    keys.forEach(k => row.push(d.data[k] || 0));
-    
-    return row;
-  });
-
-  const title = `Laporan_${container.dataset.startDate}_sd_${container.dataset.endDate}`;
-
-  if (type === 'excel') {
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Data Laporan");
-    XLSX.writeFile(wb, `${title}.xlsx`);
-  } else {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF('landscape');
-    doc.setFontSize(14);
-    doc.text(`Laporan Instalasi Farmasi (${container.dataset.startDate} s/d ${container.dataset.endDate})`, 14, 15);
-    
-    doc.autoTable({
-      head: [headers],
-      body: rows,
-      startY: 22,
-      styles: { fontSize: 7 },
-      headStyles: { fillColor: [22, 163, 74] }
-    });
-    doc.save(`${title}.pdf`);
-  }
+  // Panggil fungsi pertama kali
+  await loadAllData();
 }
