@@ -99,7 +99,7 @@ async function handleRoute() {
 
   try {
     view.innerHTML = `<div class="loading-state"><div class="spinner spinner-dark"></div> Memuat…</div>`;
-    await routes[hash]();
+    await routes[hash](view, state);
   } catch (err) {
     console.error(`Error rendering ${hash}:`, err);
     view.innerHTML = `<div class="login-error">Terjadi kesalahan saat memuat halaman. Cek Console.</div>`;
