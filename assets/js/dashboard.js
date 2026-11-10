@@ -12,7 +12,7 @@ const DEFAULT_METRICS = {
   'igd': 'resep_terlayani',
   'irin_mat': 'resep_per_shift',
   'irna1': 'resep_per_shift',
-  'onkologi': 'sediaan_sitostatika', // Di Excel: Jumlah Sediaan IV Admixture Sitostatika
+  'onkologi': 'sediaan_sitostatika',
   'rj': 'total_resep',
   'rj_maternitas': 'total_resep'
 };
@@ -20,14 +20,11 @@ const DEFAULT_METRICS = {
 export async function renderDashboard(container, state) {
   const isAdmin = state.profile.role === 'admin';
   
-  // 1. Ambil daftar ruangan (jika admin)
-  let listRuangan = [];
-  if (isAdmin) {
-    const { data } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
-    listRuangan = data || [];
-  }
+  // 1. Ambil daftar ruangan
+  const { data: listRuangan } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
 
-  const defaultTemplateKey = isAdmin ? (listRuangan[0]?.template_key || 'igd') : state.ruangan.template_key;
+  // Tentukan metrik default untuk ditampilkan di dropdown paling awal (default: IGD)
+  const defaultTemplateKey = isAdmin ? 'igd' : state.ruangan.template_key;
   const defaultMetric = DEFAULT_METRICS[defaultTemplateKey] || getMetricFields(defaultTemplateKey)[0]?.id;
 
   // HTML Tampilan Dashboard
@@ -37,15 +34,7 @@ export async function renderDashboard(container, state) {
       
       <div class="filter-bar" style="align-items:flex-end; display:flex; flex-wrap:wrap; gap:12px; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom:24px;">
         
-        ${isAdmin ? `
         <div class="form-group" style="margin:0; flex:1; min-width:150px;">
-          <label style="font-size:.75rem;">Ruangan</label>
-          <select id="filter-ruangan" class="form-control">
-            ${listRuangan.map(r => `<option value="${r.id}" data-tk="${r.template_key}">${r.nama}</option>`).join('')}
-          </select>
-        </div>` : ''}
-
-        <div class="form-group" style="margin:0; flex:1; min-width:120px;">
           <label style="font-size:.75rem;">Tahun</label>
           <select id="filter-tahun" class="form-control">
             <option value="2026">2026</option>
@@ -74,7 +63,7 @@ export async function renderDashboard(container, state) {
       </div>
     </div>
 
-    <!-- Area Grid Grafik -->
+    <!-- Area Grid Grafik (Multi-line untuk Admin, Single-line untuk Petugas) -->
     <div id="charts-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:20px;">
       <!-- Grafik akan di-render di sini -->
     </div>
@@ -112,20 +101,6 @@ export async function renderDashboard(container, state) {
 
   document.getElementById('filter-metric').addEventListener('change', loadAllData);
   
-  if (isAdmin) {
-    document.getElementById('filter-ruangan').addEventListener('change', (e) => {
-      const sel = e.target;
-      const tk = sel.options[sel.selectedIndex].getAttribute('data-tk');
-      const defaultM = DEFAULT_METRICS[tk] || getMetricFields(tk)[0]?.id;
-      
-      // Ganti dropdown metrik sesuai ruangan
-      document.getElementById('filter-metric').innerHTML = getMetricFields(tk).map(m => 
-        `<option value="${m.id}" ${m.id === defaultM ? 'selected' : ''}>${m.label}</option>`
-      ).join('');
-      loadAllData();
-    });
-  }
-
   document.getElementById('btn-close-modal').addEventListener('click', () => {
     document.getElementById('modal-chart').close();
   });
@@ -142,8 +117,6 @@ export async function renderDashboard(container, state) {
     
     grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat grafik...</div>`;
 
-    const valRuangan = isAdmin ? document.getElementById('filter-ruangan').value : state.profile.ruangan_id;
-    
     // Query dasar
     let query = supabase.from('laporan')
       .select('ruangan_id, tanggal, data')
@@ -151,7 +124,10 @@ export async function renderDashboard(container, state) {
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true });
 
-    if (valRuangan) query = query.eq('ruangan_id', valRuangan);
+    // Jika bukan admin, filter hanya ruangannya sendiri
+    if (!isAdmin) {
+      query = query.eq('ruangan_id', state.profile.ruangan_id);
+    }
 
     const { data, error } = await query;
 
@@ -160,17 +136,11 @@ export async function renderDashboard(container, state) {
       return;
     }
 
-    // Tentukan ruangan mana saja yang mau digambar
-    let ruanganToDraw = [];
-    if (!valRuangan && isAdmin) {
-       // (Tidak dipakai karena admin selalu pilih 1 ruangan di kode ini)
-       ruanganToDraw = listRuangan; 
-    } else {
-      const r = listRuangan.find(ru => ru.id == valRuangan) || state.ruangan;
-      ruanganToDraw = [r];
-    }
-
     grid.innerHTML = ''; // Bersihkan loading
+
+    // Tentukan ruangan mana saja yang mau digambar
+    // Jika Admin: gambar SEMUA ruangan. Jika Petugas: gambar 1 ruangan saja.
+    let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
 
     // Loop setiap ruangan untuk membuat kotak grafik
     ruanganToDraw.forEach((r, index) => {
@@ -195,7 +165,7 @@ export async function renderDashboard(container, state) {
         return lap ? (lap.data[metricId] || 0) : 0;
       });
 
-      // Format label tanggal (Jika setahun full, pakai nama bulan)
+      // Format label tanggal
       const diffDays = (dates[1] - dates[0]) / (1000 * 60 * 60 * 24);
       const formattedLabels = labels.map(l => {
         const d = new Date(l);
@@ -218,7 +188,7 @@ export async function renderDashboard(container, state) {
               borderWidth: 2,
               fill: true,
               tension: 0.3,
-              pointRadius: diffDays > 90 ? 0 : 2 // Sembunyikan titik jika data terlalu banyak
+              pointRadius: diffDays > 90 ? 0 : 2
             }]
           },
           options: {
@@ -233,7 +203,7 @@ export async function renderDashboard(container, state) {
       }, 100 * index);
     });
     
-    // Simpan data untuk export
+    // Simpan data mentah untuk Export
     container.dataset.rawData = JSON.stringify(data);
   }
 
