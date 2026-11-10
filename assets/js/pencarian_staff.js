@@ -115,19 +115,19 @@ export async function renderPencarianStaff(container, state) {
         isHadir = true;
       }
       
-      // 2. Cek berdasarkan Teks di JSON (Data Lama dari Excel)
+       // 2. Cek berdasarkan Teks di JSON (Data Lama dari Excel)
       if (!isHadir && lap.data) {
-        // Ambil nama depan staff dari dropdown (sebelum koma)
-        const namaDepan = staffName.toLowerCase().split(',')[0].trim();
+        const namaDepan = staffName.toLowerCase().split(',')[0].trim().split(' ')[0];
 
         Object.values(lap.data).forEach(val => {
-          if (typeof val === 'string' && val.trim() !== '' && !isNaN(val) === false) {
-             // Ubah teks ke huruf kecil
-             const textLower = val.toLowerCase();
-             // Cek apakah teks di database mengandung nama depan staff
-             if (textLower.includes(namaDepan)) {
-                isHadir = true;
-             }
+          if (typeof val === 'string' && val.trim() !== '' && isNaN(val)) {
+             const listNama = val.split(',').map(s => s.trim());
+             
+             listNama.forEach(nama => {
+                if (nama.toLowerCase().includes(namaDepan)) {
+                   isHadir = true;
+                }
+             });
           }
         });
       }
