@@ -432,3 +432,7 @@ dialog {
   border: none;
 }
 .pill-remove:hover { color: var(--danger); }
+
+/* Kalender Flatpickr Custom */
+.flatpickr-calendar { font-family: var(--font) !important; box-shadow: var(--shadow-md) !important; }
+.flatpickr-day.selected { background: var(--green-600) !important; border-color: var(--green-600) !important; }
