@@ -149,7 +149,7 @@ export async function renderLaporanPelayanan(container, state) {
 
     // RAKIT ULANG TABEL DARI NOL (Ini kunci menghilangkan header kosong)
     table.innerHTML = `
-      <thead style="position: sticky; top: 190px; z-index: 5; background: var(--gray-50);">
+      <thead>
         ${headHTML}
       </thead>
       <tbody>
