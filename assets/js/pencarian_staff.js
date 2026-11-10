@@ -117,11 +117,15 @@ export async function renderPencarianStaff(container, state) {
       
       // 2. Cek berdasarkan Teks di JSON (Data Lama dari Excel)
       if (!isHadir && lap.data) {
+        // Ambil nama depan staff dari dropdown (sebelum koma)
+        const namaDepan = staffName.toLowerCase().split(',')[0].trim();
+
         Object.values(lap.data).forEach(val => {
           if (typeof val === 'string' && val.trim() !== '' && !isNaN(val) === false) {
-             // Cocokkan nama depan (sebelum koma)
-             const namaDepan = staffName.toLowerCase().split(',')[0];
-             if (val.toLowerCase().includes(namaDepan)) {
+             // Ubah teks ke huruf kecil
+             const textLower = val.toLowerCase();
+             // Cek apakah teks di database mengandung nama depan staff
+             if (textLower.includes(namaDepan)) {
                 isHadir = true;
              }
           }
