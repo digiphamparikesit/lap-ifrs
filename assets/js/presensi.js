@@ -136,21 +136,42 @@ export async function renderPresensi(container, state) {
         });
       }
       
-      // B. Baca dari data migrasi Excel (Teks)
-      if (lap.data && lap.data.petugas) {
-        // Jika bentuknya string (dipisah koma), pecah jadi array
-        let teksPetugas = [];
-        if (typeof lap.data.petugas === 'string') {
-          teksPetugas = lap.data.petugas.split(',').map(s => s.trim());
-        } else if (Array.isArray(lap.data.petugas)) {
-          teksPetugas = lap.data.petugas;
-        }
+          // 2. Proses Data (Hitung kemunculan nama)
+    const rekap = {}; // Format: { "Nama Staff": { count: 0, lastDate: "" } }
 
-        teksPetugas.forEach(namaTeks => {
-          if (!namaTeks) return;
-          if (!rekap[namaTeks]) rekap[namaTeks] = { count: 0, lastDate: lap.tanggal };
-          rekap[namaTeks].count++;
-          if (lap.tanggal > rekap[namaTeks].lastDate) rekap[namaTeks].lastDate = lap.tanggal;
+    data.forEach(lap => {
+      // A. Baca dari inputan baru (UUID dari aplikasi)
+      if (lap.petugas_ids && lap.petugas_ids.length > 0) {
+        lap.petugas_ids.forEach(id => {
+          const nama = staffMap[id] || 'Staff Tidak Dikenal';
+          if (!rekap[nama]) rekap[nama] = { count: 0, lastDate: lap.tanggal };
+          rekap[nama].count++;
+          if (lap.tanggal > rekap[nama].lastDate) rekap[nama].lastDate = lap.tanggal;
+        });
+      }
+      
+      // B. Baca dari data migrasi Excel (Teks)
+      if (lap.data) {
+        // Lakukan perulangan untuk mencari semua key yang mengandung kata "petugas"
+        Object.keys(lap.data).forEach(key => {
+          if (key.toLowerCase().includes('petugas')) {
+            let val = lap.data[key];
+            
+            // Jika isinya string dan ada koma (misal: "Budi, Ani"), pecah jadi array
+            let listNama = [];
+            if (typeof val === 'string' && val.trim() !== '') {
+              listNama = val.split(',').map(s => s.trim());
+            } else if (val && val.trim() !== '') {
+              listNama = [val.trim()];
+            }
+
+            listNama.forEach(namaTeks => {
+              if (!namaTeks) return;
+              if (!rekap[namaTeks]) rekap[namaTeks] = { count: 0, lastDate: lap.tanggal };
+              rekap[namaTeks].count++;
+              if (lap.tanggal > rekap[namaTeks].lastDate) rekap[namaTeks].lastDate = lap.tanggal;
+            });
+          }
         });
       }
     });
