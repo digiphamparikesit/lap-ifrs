@@ -5,7 +5,7 @@ import { getTemplate, getMetricFields } from './templates.js';
 let myChart = null;
 
 // =========================================================
-// KONFIGURASI METRIK TETAP PER RUANGAN (Terkunci)
+// KONFIGURASI METRIK TETAP PER RUANGAN
 // =========================================================
 const DEFAULT_METRICS = {
   'ibs': 'jumlah_operasi_elektif',
@@ -23,7 +23,7 @@ export async function renderDashboard(container, state) {
   // Ambil daftar ruangan
   const { data: listRuangan } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
 
-  // HTML Tampilan Dashboard (Hanya Filter Tahun & Tanggal)
+  // HTML Tampilan Dashboard
   container.innerHTML = `
     <div class="dashboard-header">
       <h2 class="page-title">Dashboard Pelayanan</h2>
@@ -52,10 +52,25 @@ export async function renderDashboard(container, state) {
       </div>
     </div>
 
-    <div id="charts-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:20px;"></div>
+    <div id="charts-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:20px; margin-bottom: 24px;"></div>
+
+    <!-- Tabel Pelayanan -->
+    <div class="table-card" id="table-container">
+      <h3 class="section-title">Laporan Tabel Pelayanan</h3>
+      <div class="table-responsive">
+        <table class="data-table" id="table-laporan">
+          <thead id="table-head">
+            <!-- Header dinamis -->
+          </thead>
+          <tbody id="table-body">
+            <!-- Data dinamis -->
+          </tbody>
+        </table>
+      </div>
+    </div>
 
     <!-- Modal Pop-up Grafik Full Screen -->
-    <dialog id="modal-chart" style="width:90vw; max-width:1200px; padding:20px; border-radius:12px; border:none; box-shadow:0 10px 40px rgba(0,0,0,.2);">
+    <dialog id="modal-chart" style="width:90vw; max-width:1200px; padding:20px; border-radius:12px; border:none; box-shadow:0 10px 40px rgba(0,0,0,.2); margin:auto; position:fixed; inset:0; z-index:9999;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h3 id="modal-title" style="margin:0; color:var(--green-800);">Detail Grafik</h3>
         <button id="btn-close-modal" style="background:none; border:none; font-size:24px; cursor:pointer; color:var(--gray-500);">×</button>
@@ -90,6 +105,10 @@ export async function renderDashboard(container, state) {
     document.getElementById('modal-chart').close();
   });
 
+  // Variabel penampung data terakhir untuk Export
+  let dataTerakhir = [];
+  let ruanganTerakhir = null;
+
   // Fungsi Load Data
   async function loadAllData() {
     const dates = fp.selectedDates;
@@ -98,8 +117,11 @@ export async function renderDashboard(container, state) {
     const startDate = dates[0].toISOString().split('T')[0];
     const endDate = dates[1].toISOString().split('T')[0];
     const grid = document.getElementById('charts-grid');
+    const tableBody = document.getElementById('table-body');
+    const tableHead = document.getElementById('table-head');
     
     grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat grafik...</div>`;
+    tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center;">Memuat data...</td></tr>`;
 
     // Query dasar
     let query = supabase.from('laporan')
@@ -118,30 +140,29 @@ export async function renderDashboard(container, state) {
     }
 
     grid.innerHTML = '';
+    dataTerakhir = data; // Simpan untuk export
 
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
 
+    // ==========================================
+    // 1. RENDER GRAFIK
+    // ==========================================
     ruanganToDraw.forEach((r, index) => {
-      // 1. Pindahkan deklarasi dataRuangan ke paling atas
       const dataRuangan = data.filter(d => d.ruangan_id === r.id);
 
-      // 2. Tentukan metrik default
       let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
       let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
 
-      // 3. PENERJEMAH OTOMATIS (Agar data dari Excel terbaca)
+      // PENERJEMAH OTOMATIS
       if (dataRuangan.length > 0 && dataRuangan[0].data[metricId] === undefined) {
-         // Jika tidak ketemu, coba tambahkan 'jumlah_' di depannya
          if (dataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
              metricId = `jumlah_${metricId}`;
          } 
-         // Khusus IGD
          else if (metricId === 'resep_terlayani') {
              metricId = 'jumlah_resep_terlayani';
          }
       }
             
-      // Buat Canvas Box
       const boxId = `chart-box-${r.id}`;
       grid.innerHTML += `
         <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDate}', '${metricLabel}')">
@@ -153,14 +174,12 @@ export async function renderDashboard(container, state) {
         </div>
       `;
 
-      // Siapkan data Grafik
       const labels = [...new Set(dataRuangan.map(d => d.tanggal))].sort();
       const values = labels.map(tgl => {
         const lap = dataRuangan.find(d => d.tanggal === tgl);
         return lap ? (lap.data[metricId] || 0) : 0;
       });
 
-      // Format label tanggal
       const diffDays = (dates[1] - dates[0]) / (1000 * 60 * 60 * 24);
       const formattedLabels = labels.map(l => {
         const d = new Date(l);
@@ -168,7 +187,6 @@ export async function renderDashboard(container, state) {
         return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       });
 
-      // Gambar Mini Chart
       setTimeout(() => {
         const ctx = document.getElementById(boxId).getContext('2d');
         new Chart(ctx, {
@@ -197,8 +215,47 @@ export async function renderDashboard(container, state) {
         });
       }, 100 * index);
     });
-    
-    // Simpan data mentah untuk Export
+
+    // ==========================================
+    // 2. RENDER TABEL (Tampilkan data sesuai ruangan yang dipilih / 1 ruangan)
+    // ==========================================
+    const selectedRuanganId = isAdmin ? (listRuangan[0]?.id) : state.profile.ruangan_id;
+    const selectedRuangan = ruanganToDraw[0]; // Fokus ke 1 ruangan untuk tabel
+    const dataTabel = data.filter(d => d.ruangan_id === selectedRuangan.id);
+
+    if (dataTabel.length > 0) {
+      // Buat Header Tabel Dinamis berdasarkan field metric
+      const template = getTemplate(selectedRuangan.template_key);
+      const numFields = template.fields.filter(f => f.type === 'number');
+      
+      let headHTML = `<tr><th>Tanggal</th><th>Shift</th>`;
+      numFields.forEach(f => {
+        headHTML += `<th>${f.label}</th>`;
+      });
+      headHTML += `</tr>`;
+      tableHead.innerHTML = headHTML;
+
+      // Buat Body Tabel
+      let bodyHTML = '';
+      dataTabel.reverse().forEach(d => { // Urutkan dari terbaru
+        bodyHTML += `<tr>
+          <td style="white-space:nowrap;">${new Date(d.tanggal).toLocaleDateString('id-ID')}</td>
+          <td>${d.data.shift ? d.data.shift.toUpperCase() : '-'}</td>
+        `;
+        numFields.forEach(f => {
+          let val = d.data[f.id];
+          // Fallback nama dengan jumlah_
+          if (val === undefined) val = d.data[`jumlah_${f.id}`] || 0;
+          bodyHTML += `<td>${val}</td>`;
+        });
+        bodyHTML += `</tr>`;
+      });
+      tableBody.innerHTML = bodyHTML;
+    } else {
+      tableHead.innerHTML = '';
+      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center;">Tidak ada data pada rentang tanggal ini.</td></tr>`;
+    }
+
     container.dataset.rawData = JSON.stringify(data);
   }
 
@@ -216,7 +273,7 @@ export async function renderDashboard(container, state) {
       .order('tanggal', { ascending: true })
       .then(({ data }) => {
         const labels = data.map(d => d.tanggal);
-        const values = data.map(d => d.data[metricId] || 0);
+        const values = data.map(d => d.data[metricId] || d.data[`jumlah_${metricId}`] || 0);
         const formattedLabels = labels.map(l => new Date(l).toLocaleDateString('id-ID', { day:'2-digit', month:'short'}));
         
         if (myChart) myChart.destroy();
@@ -247,6 +304,38 @@ export async function renderDashboard(container, state) {
       });
   };
 
-  // Panggil fungsi pertama kali
+  // ==========================================
+  // FUNGSI EXPORT EXCEL & PDF
+  // ==========================================
+  document.getElementById('btn-export-excel').addEventListener('click', () => {
+    const table = document.getElementById('table-laporan');
+    if (!table || table.rows.length <= 1) return alert("Tidak ada data untuk diexport.");
+    
+    const wb = XLSX.utils.table_to_book(table, {sheet: "Laporan"});
+    XLSX.writeFile(wb, `Laporan_Pelayanan_${new Date().toISOString().split('T')[0]}.xlsx`);
+  });
+
+  document.getElementById('btn-export-pdf').addEventListener('click', () => {
+    const table = document.getElementById('table-laporan');
+    if (!table || table.rows.length <= 1) return alert("Tidak ada data untuk diexport.");
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape');
+    
+    doc.setFontSize(16);
+    doc.text("Laporan Pelayanan Instalasi Farmasi", 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 14, 22);
+
+    doc.autoTable({
+      html: '#table-laporan',
+      startY: 28,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [22, 163, 74] }
+    });
+
+    doc.save(`Laporan_Pelayanan_${new Date().toISOString().split('T')[0]}.pdf`);
+  });
+
   await loadAllData();
 }
