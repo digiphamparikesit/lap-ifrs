@@ -442,3 +442,62 @@ dialog {
   width: 100%;
   max-width: 100%;
 }
+
+/* =========================================================
+   CHECKLIST PETUGAS (MODE COMPACT)
+   ========================================================= */
+.petugas-checklist-wrap {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  max-height: 200px; /* Membatasi tinggi agar bisa di-scroll ke bawah */
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.checkbox-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* Otomatis membagi kolom */
+  gap: 8px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.checkbox-item:hover {
+  border-color: var(--green-400);
+  background: var(--green-50);
+}
+
+/* Tampilan saat dicentang */
+.checkbox-item.checked {
+  background: var(--green-50);
+  border-color: var(--green-500);
+  font-weight: 600;
+  color: var(--green-800);
+}
+
+.staff-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green-600);
+  cursor: pointer;
+}
+
+.checkbox-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
