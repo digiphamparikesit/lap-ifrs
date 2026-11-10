@@ -12,7 +12,7 @@ export async function renderLaporanPelayanan(container, state) {
     listRuangan = data || [];
   }
 
-    // Tampilan Filter
+  // Tampilan Filter
   container.innerHTML = `
     <div class="dashboard-header" style="position: sticky; top: 0; z-index: 10; background: var(--gray-50); padding-top: 10px; margin-top: -10px; padding-bottom: 10px;">
       <h2 class="page-title" style="margin-top: 10px;">Laporan Pelayanan</h2>
@@ -51,7 +51,6 @@ export async function renderLaporanPelayanan(container, state) {
 
     <div class="table-card">
       <div class="table-responsive">
-        <!-- Tambahkan style sticky untuk header tabel (thead) -->
         <table class="data-table" id="table-laporan">
           <thead id="table-head" style="position: sticky; top: 190px; z-index: 5; background: var(--gray-50);"></thead>
           <tbody id="table-body">
@@ -114,6 +113,7 @@ export async function renderLaporanPelayanan(container, state) {
       .order('tanggal', { ascending: false }); // Urutkan dari terbaru
 
     if (error) {
+      tableHead.innerHTML = '';
       tableBody.innerHTML = `<tr><td colspan="10" class="login-error">Gagal memuat: ${error.message}</td></tr>`;
       return;
     }
@@ -128,6 +128,9 @@ export async function renderLaporanPelayanan(container, state) {
     const template = getTemplate(templateKey);
     const numFields = template.fields.filter(f => f.type === 'number' && f.metric);
     
+    // KOSONGKAN HEADER LAMA SEBELUM RENDER BARU (Mencegah Header Ganda)
+    tableHead.innerHTML = '';
+
     let headHTML = `<tr><th>Tanggal</th><th>Shift</th>`;
     numFields.forEach(f => {
       headHTML += `<th>${f.label}</th>`;
@@ -139,13 +142,14 @@ export async function renderLaporanPelayanan(container, state) {
     let bodyHTML = '';
     data.forEach(d => {
       bodyHTML += `<tr>
-        <td style="white-space:nowrap;">${new Date(d.tanggal).toLocaleDateString('id-ID')}</td>
-        <td>${d.shift ? d.shift.toUpperCase() : '-'}</td>
+        <td style="white-space:nowrap; font-weight:600;">${new Date(d.tanggal).toLocaleDateString('id-ID')}</td>
+        <td style="text-transform: uppercase; font-weight:600; color:var(--green-700);">${d.shift ? d.shift : '-'}</td>
       `;
       numFields.forEach(f => {
         let val = d.data[f.id];
         if (val === undefined) val = d.data[`jumlah_${f.id}`] || 0;
-        bodyHTML += `<td>${val}</td>`;
+        // TAMBAHKAN CLASS text-right DI SINI
+        bodyHTML += `<td class="text-right">${val}</td>`;
       });
       bodyHTML += `</tr>`;
     });
