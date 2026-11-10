@@ -1,6 +1,8 @@
 // assets/js/router.js
 import { supabase } from './supabase.js';
 import { renderFormInput } from './laporan.js'; // Import ditaruh di paling atas
+import { renderDaftarStaff } from './staff.js';           // <-- TAMBAHKAN INI
+import { renderPengaturan as loadPengaturan } from './pengaturan.js'; // <-- TAMBAHKAN INI
 
 // State global user
 export const state = {
@@ -117,23 +119,12 @@ async function renderInput() {
 }
 
 async function renderStaff() {
-  view.innerHTML = `
-    <div style="background:#fff; padding:24px; border-radius:12px; border:1px solid var(--gray-200); text-align:center; margin-top:20px;">
-      <h2 style="color:var(--green-700);">🚧 Modul Daftar Staff</h2>
-      <p style="color:var(--gray-500);">Manajemen dan daftar staff akan tampil di sini (Fase 6).</p>
-    </div>
-  `;
+  await renderDaftarStaff(view, state);
 }
 
 async function renderPengaturan() {
-  view.innerHTML = `
-    <div style="background:#fff; padding:24px; border-radius:12px; border:1px solid var(--gray-200); text-align:center; margin-top:20px;">
-      <h2 style="color:var(--green-700);">🚧 Modul Pengaturan Admin</h2>
-      <p style="color:var(--gray-500);">Pengaturan ruangan, staff, dan user akan tampil di sini (Fase 6).</p>
-    </div>
-  `;
+  await loadPengaturan(view, state);
 }
-
 /* =========================================================
    4. EVENT LISTENERS & UTILS
    ========================================================= */
