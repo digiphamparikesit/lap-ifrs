@@ -152,8 +152,12 @@ export async function renderPresensi(container, state) {
         
         // Cek Teks (Jika UUID kosong atau data lama)
         if (!isHadir && lap.data) {
+           // Ambil kata pertama dari nama target (misal: "Desi" dari "Desi Ana")
+           const kataPertama = targetName.toLowerCase().split(' ')[0];
+
            Object.values(lap.data).forEach(val => {
-              if (typeof val === 'string' && val.toLowerCase().includes(targetName.toLowerCase().split(',')[0])) {
+              // Cek apakah isinya teks dan mengandung kata pertama
+              if (typeof val === 'string' && val.toLowerCase().includes(kataPertama)) {
                  isHadir = true;
               }
            });
