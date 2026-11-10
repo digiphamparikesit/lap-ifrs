@@ -1,233 +1,89 @@
-// assets/js/templates.js
-// Definisi field dinamis per ruangan.
-// metric:true  -> muncul di pilihan grafik & export
-// group        -> pemisah visual di form
+const fs = require('fs');
+const csv = require('csv-parser');
+const { createClient } = require('@supabase/supabase-js');
 
-export const TEMPLATES = {
+// 1. KONFIGURASI
+const SUPABASE_URL = 'URL_SUPABASE_ANDA';
+const SUPABASE_SERVICE_KEY = 'SERVICE_ROLE_KEY_ANDA'; // Gunakan service key agar bisa bypass RLS saat migrasi
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  /* ============================================================
-   * 1) DEPO FARMASI RAWAT JALAN (tanpa shift)
-   * ============================================================ */
-  rj: {
-    key: 'rj',
-    nama: 'DEPO FARMASI RAWAT JALAN',
-    punyaShift: false,
-    fields: [
-      { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
-      { id: 'petugas', label: 'Nama Petugas',          type: 'petugas', required: true, group: 'Umum' },
+// 2. TENTUKAN RUANGAN & FILE CSV
+const RUANGAN_ID = 'MASUKKAN_ID_RUANGAN_DARI_SUPABASE'; // Cek di tabel ruangan
+const NAMA_FILE_CSV = 'igd.csv'; // Ganti sesuai nama file CSV Anda
+const PUNYA_SHIFT = true; // true jika ruangan ini pakai shift (IGD, IBS, dll)
 
-      { id: 'jam_awal_pagi',   label: 'Jam Awal Resep Poliklinik Pagi',  type: 'time', group: 'Poliklinik Pagi' },
-      { id: 'jam_akhir_pagi',  label: 'Jam Akhir Resep Poliklinik Pagi', type: 'time', group: 'Poliklinik Pagi' },
-      { id: 'resep_poli_pertama', label: 'Resep Poliklinik Pertama Masuk', type: 'number', min: 0, metric: true, group: 'Poliklinik Pagi' },
-      { id: 'resep_poli_terakhir', label: 'Resep Poliklinik Terakhir Masuk', type: 'number', min: 0, metric: true, group: 'Poliklinik Pagi' },
-      { id: 'racikan_pagi',    label: 'Jumlah Resep Racikan (Poli Pagi)', type: 'number', min: 0, metric: true, group: 'Poliklinik Pagi' },
+const results = [];
 
-      { id: 'jam_awal_sore',   label: 'Jam Awal Resep Poliklinik Sore',  type: 'time', group: 'Poliklinik Sore' },
-      { id: 'jam_akhir_sore',  label: 'Jam Akhir Resep Poliklinik Sore', type: 'time', group: 'Poliklinik Sore' },
-      { id: 'racikan_sore',    label: 'Jumlah Resep Racikan (Poli Sore)', type: 'number', min: 0, metric: true, group: 'Poliklinik Sore' },
+fs.createReadStream(NAMA_FILE_CSV)
+  .pipe(csv())
+  .on('data', (data) => {
+    // --- PROSES MIGRASI DATA ---
+    // Kita petakan header Excel ke format JSON aplikasi kita
+    
+    // 1. Ambil Tanggal
+    let tanggalStr = data['TANGGAL INPUT LAPORAN'] || data['TANGGAL INPUT LAPORAN IBS'];
+    let tanggal = null;
+    if (tanggalStr) {
+      // Excel biasanya format DD/MM/YYYY atau YYYY-MM-DD
+      const parts = tanggalStr.split(' ')[0].split('/'); 
+      if(parts.length === 3) {
+        tanggal = `${parts[2]}-${parts[1]}-${parts[0]}`; // Ubah ke YYYY-MM-DD
+      } else {
+        tanggal = tanggalStr.split(' ')[0]; 
+      }
+    }
 
-      { id: 'konseling',       label: 'Jumlah Kegiatan Konseling',        type: 'number', min: 0, metric: true, group: 'Total' },
-      { id: 'total_resep',     label: 'Jumlah Total Resep Harian',        type: 'number', min: 0, metric: true, group: 'Total' },
-    ],
-  },
+    // 2. Ambil Shift (Jika ada)
+    let shift = data['JADWAL SHIFT'] ? data['JADWAL SHIFT'].toLowerCase() : null;
+    if (shift === 'siang' || shift === 'middle') shift = 'middle';
+    if (shift === 'malam') shift = 'sore';
 
-  /* ============================================================
-   * 2) DEPO FARMASI RAWAT JALAN MATERNITAS (tanpa shift)
-   * ============================================================ */
-  rj_maternitas: {
-    key: 'rj_maternitas',
-    nama: 'DEPO FARMASI RAWAT JALAN MATERNITAS',
-    punyaShift: false,
-    fields: [
-      { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
-      { id: 'petugas', label: 'Nama Petugas',          type: 'petugas', required: true, group: 'Umum' },
+    // 3. Ambil Petugas (Gabungkan Petugas 1-19 menjadi Array)
+    let petugasNames = [];
+    for (let i = 1; i <= 19; i++) {
+      let nama = data[`PETUGAS ${i}`] || data[`NAMA PETUGAS IGD ${i}`] || data[`PETUGAS PAGI ${i}`] || data[`PETUGAS MIDEL ${i}`];
+      if (nama && nama.trim() !== '') petugasNames.push(nama.trim());
+    }
+    // Catatan: Di aplikasi kita, petugas disimpan sebagai UUID. 
+    // Untuk migrasi cepat, kita bisa biarkan kosong dulu, atau Anda harus mencocokkan nama ke tabel staff.
 
-      { id: 'jam_awal_pagi',   label: 'Jam Awal Resep Poliklinik Pagi',  type: 'time', group: 'Poliklinik Pagi' },
-      { id: 'jam_akhir_pagi',  label: 'Jam Akhir Resep Poliklinik Pagi', type: 'time', group: 'Poliklinik Pagi' },
-      { id: 'resep_poli_pertama',  label: 'Resep Poliklinik Pertama Masuk',  type: 'number', min: 0, metric: true, group: 'Poliklinik Pagi' },
-      { id: 'resep_poli_terakhir', label: 'Resep Poliklinik Terakhir Masuk', type: 'number', min: 0, metric: true, group: 'Poliklinik Pagi' },
-      { id: 'racikan_pagi',    label: 'Jumlah Resep Racikan (Poli Pagi)', type: 'number', min: 0, metric: true, group: 'Poliklinik Pagi' },
+    // 4. Kumpulkan Data Angka (Sisanya)
+    const dataPayload = {};
+    for (const [key, value] of Object.entries(data)) {
+      // Abaikan kolom non-angka
+      if (['TANGGAL INPUT LAPORAN', 'TANGGAL INPUT LAPORAN IBS', 'JADWAL SHIFT', 'BULAN', 'TAHUN'].includes(key)) continue;
+      if (key.startsWith('PETUGAS') || key.startsWith('NAMA PETUGAS')) continue;
+      
+      // Ubah nama header menjadi id field di aplikasi kita (huruf kecil, spasi jadi underscore)
+      const fieldId = key.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+      
+      // Konversi ke angka jika memungkinkan
+      const numVal = parseFloat(value);
+      dataPayload[fieldId] = isNaN(numVal) ? value : numVal;
+    }
 
-      { id: 'jam_awal_sore',   label: 'Jam Awal Resep Poliklinik Sore',  type: 'time', group: 'Poliklinik Sore' },
-      { id: 'jam_akhir_sore',  label: 'Jam Akhir Resep Poliklinik Sore', type: 'time', group: 'Poliklinik Sore' },
-      { id: 'racikan_sore',    label: 'Jumlah Resep Racikan (Poli Sore)', type: 'number', min: 0, metric: true, group: 'Poliklinik Sore' },
-
-      { id: 'konseling',       label: 'Jumlah Kegiatan Konseling',        type: 'number', min: 0, metric: true, group: 'Total' },
-      { id: 'total_resep',     label: 'Jumlah Total Resep Harian',        type: 'number', min: 0, metric: true, group: 'Total' },
-    ],
-  },
-
-  /* ============================================================
-   * 3) DEPO FARMASI IRIN DAN MATERNITAS (shift)
-   * ============================================================ */
-  irin_mat: {
-    key: 'irin_mat',
-    nama: 'DEPO FARMASI IRIN DAN MATERNITAS',
-    punyaShift: true,
-    fields: [
-      { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
-      { id: 'shift',   label: 'Jadwal Shift',          type: 'select', required: true, group: 'Umum',
-        opsi: [
-          { value: 'pagi',   label: 'Shift Pagi'   },
-          { value: 'middle', label: 'Shift Middle' },
-          { value: 'sore',   label: 'Shift Sore'   },
-        ] },
-      { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
-
-      { id: 'resep_obat_pulang',   label: 'Jumlah Resep Obat Pulang',       type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'resep_racikan',       label: 'Jumlah Resep Racikan',           type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'resep_elektrolit',    label: 'Jumlah Resep Elektrolit Pekat',  type: 'number', min: 0, metric: true, group: 'Resep' },
-    ],
-  },
-
-  /* ============================================================
-   * 4) DEPO FARMASI IGD (shift)
-   * ============================================================ */
-  igd: {
-    key: 'igd',
-    nama: 'DEPO FARMASI IGD',
-    punyaShift: true,
-    fields: [
-      { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
-      { id: 'shift',   label: 'Jadwal Shift',          type: 'select', required: true, group: 'Umum',
-        opsi: [
-          { value: 'pagi',   label: 'Shift Pagi'   },
-          { value: 'middle', label: 'Shift Middle' },
-          { value: 'sore',   label: 'Shift Sore'   },
-        ] },
-      { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
-
-      { id: 'resep_terlayani',     label: 'Jumlah Resep Terlayani',                type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'resep_elektrolit',    label: 'Jumlah Resep Elektrolit Pekat',         type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'resep_tpn',           label: 'Jumlah Resep TPN',                      type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'racikan_puyer',       label: 'Jumlah Resep Racikan (Puyer)',          type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'racikan_salep',       label: 'Jumlah Resep Racikan (Salep/Cream)',    type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'tambahan_resep_ranap', label: 'Jumlah Tambahan Resep Rawat Inap',     type: 'number', min: 0, metric: true, group: 'Resep' },
-
-      { id: 'pasien_tertahan',     label: 'Jumlah Pasien Tertahan di IGD',         type: 'number', min: 0, metric: true, group: 'Pasien' },
-      { id: 'pasien_pindah_ranap', label: 'Jumlah Pasien Pindah Ruang Rawat Inap', type: 'number', min: 0, metric: true, group: 'Pasien' },
-      { id: 'pasien_kode_merah',   label: 'Jumlah Pasien Kode Merah',              type: 'number', min: 0, metric: true, group: 'Pasien' },
-      { id: 'pasien_pulang',       label: 'Jumlah Pasien Pulang',                  type: 'number', min: 0, metric: true, group: 'Pasien' },
-    ],
-  },
-
-  /* ============================================================
-   * 5) DEPO FARMASI IBS (shift)
-   * ============================================================ */
-  ibs: {
-    key: 'ibs',
-    nama: 'DEPO FARMASI IBS',
-    punyaShift: true,
-    fields: [
-      { id: 'tanggal', label: 'Tanggal Input Laporan IBS', type: 'date', required: true, group: 'Umum' },
-      { id: 'shift',   label: 'Jadwal Shift',              type: 'select', required: true, group: 'Umum',
-        opsi: [
-          { value: 'pagi',   label: 'Shift Pagi'   },
-          { value: 'middle', label: 'Shift Middle' },
-          { value: 'sore',   label: 'Shift Sore'   },
-        ] },
-      { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
-
-      { id: 'operasi_elektif', label: 'Jumlah Operasi Elektif', type: 'number', min: 0, metric: true, group: 'Operasi' },
-      { id: 'operasi_cito',    label: 'Jumlah Operasi Cito',    type: 'number', min: 0, metric: true, group: 'Operasi' },
-      { id: 'operasi_mata',    label: 'Jumlah Operasi Mata',    type: 'number', min: 0, metric: true, group: 'Operasi' },
-
-      { id: 'pasien_bpjs',       label: 'Status Pasien BPJS',       type: 'number', min: 0, metric: true, group: 'Status Pasien' },
-      { id: 'pasien_cash',       label: 'Status Pasien Cash',       type: 'number', min: 0, metric: true, group: 'Status Pasien' },
-      { id: 'pasien_perusahaan', label: 'Status Pasien Perusahaan', type: 'number', min: 0, metric: true, group: 'Status Pasien' },
-    ],
-  },
-
-  /* ============================================================
-   * 6) DEPO FARMASI IRNA 1 DAN PAVILIUN (shift)
-   * ============================================================ */
-  irna1: {
-    key: 'irna1',
-    nama: 'DEPO FARMASI IRNA 1 DAN PAVILIUN',
-    punyaShift: true,
-    fields: [
-      { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
-      { id: 'shift',   label: 'Jadwal Shift',          type: 'select', required: true, group: 'Umum',
-        opsi: [
-          { value: 'pagi',   label: 'Shift Pagi'   },
-          { value: 'middle', label: 'Shift Middle' },
-          { value: 'sore',   label: 'Shift Sore'   },
-        ] },
-      { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
-
-      { id: 'resep_per_shift',  label: 'Jumlah Resep Per-Shift',                 type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'racikan_puyer',    label: 'Jumlah Resep Racikan (Puyer)',           type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'racikan_salep',    label: 'Jumlah Resep Racikan (Salep/Cream)',     type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'resep_elektrolit', label: 'Jumlah Resep Elektrolit Pekat',          type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'resep_tpn',        label: 'Jumlah Resep TPN/IV Admixture Rawat Inap', type: 'number', min: 0, metric: true, group: 'Resep' },
-      { id: 'resep_pasien_pulang', label: 'Jumlah Resep Pasien Pulang',          type: 'number', min: 0, metric: true, group: 'Resep' },
-
-      { id: 'pasien_hemodialisa', label: 'Jumlah Pasien Hemodialisa',            type: 'number', min: 0, metric: true, group: 'Pasien' },
-      { id: 'pasien_konseling',   label: 'Jumlah Pasien Konseling',              type: 'number', min: 0, metric: true, group: 'Pasien' },
-    ],
-  },
-
-  /* ============================================================
-   * 7) DEPO FARMASI ONKOLOGI TERPADU (shift)
-   * ============================================================ */
-  onkologi: {
-    key: 'onkologi',
-    nama: 'DEPO FARMASI ONKOLOGI TERPADU',
-    punyaShift: true,
-    fields: [
-      { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
-      { id: 'shift',   label: 'Jadwal Shift',          type: 'select', required: true, group: 'Umum',
-        opsi: [
-          { value: 'pagi',   label: 'Shift Pagi'   },
-          { value: 'middle', label: 'Shift Middle' },
-          { value: 'sore',   label: 'Shift Sore'   },
-        ] },
-      { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
-
-      { id: 'pasien_kemoterapi',   label: 'Jumlah Pasien Kemoterapi',           type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
-      { id: 'sediaan_sitostatika', label: 'Jumlah Sediaan IV Admixture Sitostatika', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
-      { id: 'sediaan_tpn',         label: 'Jumlah Sediaan IV Admixture TPN',    type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
-      { id: 'sediaan_elektrolit',  label: 'Jumlah Sediaan IV Admixture Elektrolit Pekat', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
-
-      { id: 'pasien_picu',         label: 'Jumlah Pasien Ruangan PICU',         type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-      { id: 'pasien_perinatologi', label: 'Jumlah Pasien Ruangan Perinatologi', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-      { id: 'pasien_enggang2',     label: 'Jumlah Pasien Ruangan Enggang 2 Anak', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-      { id: 'pasien_vip_punai1',   label: 'Jumlah Pasien Ruangan VIP Punai 1',  type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-      { id: 'pasien_intermediate', label: 'Jumlah Pasien Ruangan Intermediate (UPSS)', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-    ],
-  },
-};
-
-/* ================================================================
- * Helper
- * ================================================================ */
-
-/** Ambil template berdasarkan key */
-export function getTemplate(key) {
-  return TEMPLATES[key] || null;
-}
-
-/** Daftar field metric (untuk dropdown grafik/export) */
-export function getMetricFields(templateKey) {
-  const t = TEMPLATES[templateKey];
-  if (!t) return [];
-  return t.fields.filter(f => f.metric).map(f => ({ id: f.id, label: f.label }));
-}
-
-/** Daftar grup unik (untuk render seksi form) */
-export function getGroups(templateKey) {
-  const t = TEMPLATES[templateKey];
-  if (!t) return [];
-  const seen = new Set();
-  const out = [];
-  for (const f of t.fields) {
-    if (!seen.has(f.group)) { seen.add(f.group); out.push(f.group); }
-  }
-  return out;
-}
-
-/** Ambil field berdasarkan id */
-export function getField(templateKey, fieldId) {
-  const t = TEMPLATES[templateKey];
-  return t ? t.fields.find(f => f.id === fieldId) : null;
-}
+    // Masukkan ke array untuk di-insert
+    results.push({
+      ruangan_id: RUANGAN_ID,
+      tanggal: tanggal,
+      shift: PUNYA_SHIFT ? shift : null,
+      petugas_ids: [], // Kosongkan dulu, atau isi jika Anda punya script pencocokan nama
+      data: dataPayload
+    });
+  })
+  .on('end', async () => {
+    console.log(`Mencoba memasukkan ${results.length} data...`);
+    
+    // Insert ke Supabase (dibagi per 100 baris agar tidak timeout)
+    for (let i = 0; i < results.length; i += 100) {
+      const chunk = results.slice(i, i + 100);
+      const { data, error } = await supabase.from('laporan').insert(chunk);
+      
+      if (error) {
+        console.error('Gagal migrasi chunk:', error);
+      } else {
+        console.log(`✅ Berhasil memasukkan baris ${i + 1} - ${i + chunk.length}`);
+      }
+    }
+    console.log('Migrasi Selesai!');
+  });
