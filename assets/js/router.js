@@ -4,6 +4,7 @@ import { renderFormInput } from './laporan.js'; // Import ditaruh di paling atas
 import { renderDaftarStaff } from './staff.js';           // <-- TAMBAHKAN INI
 import { renderPengaturan as loadPengaturan } from './pengaturan.js'; // <-- TAMBAHKAN INI
 import { renderDashboard as loadDashboard } from './dashboard.js'; // <-- TAMBAHKAN INI (BARIS BARU)
+import { renderLaporanPelayanan } from './laporan_pelayanan.js';
 
 // State global user
 export const state = {
@@ -72,6 +73,7 @@ async function initAuth() {
 const routes = {
   'dashboard': renderDashboard,
   'input': renderInput,
+  'laporan-pelayanan': renderLaporanPelayanan, // Rute Baru
   'staff': renderStaff,
   'pengaturan': renderPengaturan
 };
