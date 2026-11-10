@@ -4,20 +4,16 @@ import { supabase } from './supabase.js';
 export async function renderPresensi(container, state) {
   const isAdmin = state.profile.role === 'admin';
   
-  // Ambil daftar ruangan (jika admin)
   let listRuangan = [];
   if (isAdmin) {
     const { data } = await supabase.from('ruangan').select('id, nama').neq('kode', 'ADMIN').order('kode');
     listRuangan = data || [];
   }
 
-  // Tampilan Filter
   container.innerHTML = `
     <div class="dashboard-header">
       <h2 class="page-title">Presensi / Kehadiran Staff</h2>
-      
       <div class="filter-bar" style="align-items:flex-end; display:flex; flex-wrap:wrap; gap:12px; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom:24px;">
-        
         ${isAdmin ? `
         <div class="form-group" style="margin:0; flex:1; min-width:200px;">
           <label style="font-size:.75rem;">Pilih Ruangan</label>
@@ -25,7 +21,6 @@ export async function renderPresensi(container, state) {
             ${listRuangan.map(r => `<option value="${r.id}">${r.nama}</option>`).join('')}
           </select>
         </div>` : ''}
-
         <div class="form-group" style="margin:0; flex:1; min-width:120px;">
           <label style="font-size:.75rem;">Tahun</label>
           <select id="filter-tahun" class="form-control">
@@ -35,7 +30,6 @@ export async function renderPresensi(container, state) {
             <option value="2023">2023</option>
           </select>
         </div>
-
         <div class="form-group" style="margin:0; flex:2; min-width:250px;">
           <label style="font-size:.75rem;">Rentang Tanggal</label>
           <input type="text" id="filter-tanggal" class="form-control" placeholder="Pilih rentang..." readonly>
@@ -63,7 +57,6 @@ export async function renderPresensi(container, state) {
     </div>
   `;
 
-  // Inisialisasi Kalender
   const today = new Date();
   const startOfYear = new Date(today.getFullYear(), 0, 1);
   const fp = flatpickr("#filter-tanggal", {
@@ -85,7 +78,6 @@ export async function renderPresensi(container, state) {
     document.getElementById('filter-ruangan').addEventListener('change', loadData);
   }
 
-  // Fungsi Load Data Presensi
   async function loadData() {
     const dates = fp.selectedDates;
     if (dates.length !== 2) return;
@@ -96,15 +88,8 @@ export async function renderPresensi(container, state) {
     
     tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;"><div class="spinner spinner-dark"></div> Memuat data...</td></tr>`;
 
-    // Tentukan Ruangan
-    let valRuangan;
-    if (isAdmin) {
-      valRuangan = document.getElementById('filter-ruangan').value;
-    } else {
-      valRuangan = state.profile.ruangan_id;
-    }
+    let valRuangan = isAdmin ? document.getElementById('filter-ruangan').value : state.profile.ruangan_id;
 
-    // Ambil semua data laporan di ruangan tersebut
     const { data, error } = await supabase.from('laporan')
       .select('tanggal, petugas_ids, data')
       .eq('ruangan_id', valRuangan)
@@ -117,51 +102,59 @@ export async function renderPresensi(container, state) {
       return;
     }
 
-    // 1. Ambil master data staff untuk mencocokkan UUID menjadi Nama
     const { data: staffList } = await supabase.from('staff').select('id, nama');
     const staffMap = {};
     if (staffList) staffList.forEach(s => staffMap[s.id] = s.nama);
 
-    // 2. Proses Data (Hitung kemunculan nama)
-    const rekap = {}; // Format: { "Nama Staff": { count: 0, lastDate: "" } }
+    const rekap = {}; 
+
+    // FUNGSI BANTU UNTUK MENCATAT REKAP
+    const tambahRekap = (nama, tanggal) => {
+      if (!nama || nama.trim() === '') return;
+      if (!rekap[nama]) rekap[nama] = { count: 0, lastDate: tanggal };
+      rekap[nama].count++;
+      if (tanggal > rekap[nama].lastDate) rekap[nama].lastDate = tanggal;
+    };
 
     data.forEach(lap => {
-      // A. Baca dari inputan baru (UUID dari aplikasi)
+      // A. Baca dari inputan baru (UUID)
       if (lap.petugas_ids && lap.petugas_ids.length > 0) {
         lap.petugas_ids.forEach(id => {
-          const nama = staffMap[id] || 'Staff Tidak Dikenal';
-          if (!rekap[nama]) rekap[nama] = { count: 0, lastDate: lap.tanggal };
-          rekap[nama].count++;
-          if (lap.tanggal > rekap[nama].lastDate) rekap[nama].lastDate = lap.tanggal;
+          tambahRekap(staffMap[id] || 'Staff Tidak Dikenal', lap.tanggal);
         });
       }
       
       // B. Baca dari data migrasi Excel (Teks)
       if (lap.data) {
-        // Lakukan perulangan untuk mencari semua key yang mengandung kata "petugas"
-        Object.keys(lap.data).forEach(key => {
-          if (key.toLowerCase().includes('petugas')) {
-            let val = lap.data[key];
+        // Lakukan perulangan ke SELURUH isi JSON data
+        Object.values(lap.data).forEach(val => {
+          if (typeof val === 'string') {
+            // Cek apakah teks ini adalah nama staff yang ada di database
+            const teks = val.trim();
+            if (teks === '') return;
             
-            let listNama = [];
-            // Cek jika isinya string dan tidak kosong
-            if (typeof val === 'string' && val.trim() !== '') {
-              listNama = val.split(',').map(s => s.trim());
+            // Cek apakah teks mengandung nama staff yang terdaftar
+            // (Misal: "Aji Yuhda Wijaya,S.Farm.Apt" ada di daftar staff)
+            const isStaffName = Object.values(staffMap).some(namaAsli => 
+               teks.toLowerCase().includes(namaAsli.toLowerCase().split(',')[0])
+            );
+            
+            if (isStaffName) {
+               // Jika ada koma, pisah (jika 1 sel isinya 2 staff)
+               const listNama = teks.split(',').map(s => s.trim());
+               listNama.forEach(n => {
+                 // Cocokkan nama persisnya dari master
+                 const match = Object.values(staffMap).find(namaAsli => 
+                    namaAsli.toLowerCase().includes(n.toLowerCase())
+                 );
+                 if (match) tambahRekap(match, lap.tanggal);
+               });
             }
-            
-            // Masukkan nama ke dalam rekap
-            listNama.forEach(namaTeks => {
-              if (!namaTeks) return;
-              if (!rekap[namaTeks]) rekap[namaTeks] = { count: 0, lastDate: lap.tanggal };
-              rekap[namaTeks].count++;
-              if (lap.tanggal > rekap[namaTeks].lastDate) rekap[namaTeks].lastDate = lap.tanggal;
-            });
           }
         });
       }
     });
 
-    // 3. Ubah Object menjadi Array dan Urutkan berdasarkan Total Shift terbanyak
     const resultArray = Object.keys(rekap).map(nama => ({
       nama: nama,
       total: rekap[nama].count,
@@ -173,7 +166,6 @@ export async function renderPresensi(container, state) {
       return;
     }
 
-    // 4. Render ke Tabel
     let bodyHTML = '';
     resultArray.forEach((st, index) => {
       bodyHTML += `<tr>
@@ -186,6 +178,5 @@ export async function renderPresensi(container, state) {
     tableBody.innerHTML = bodyHTML;
   }
 
-  // Panggil pertama kali
   await loadData();
 }
