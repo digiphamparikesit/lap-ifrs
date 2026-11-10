@@ -90,10 +90,10 @@ export async function renderLaporanPelayanan(container, state) {
     
     const startDate = dates[0].toISOString().split('T')[0];
     const endDate = dates[1].toISOString().split('T')[0];
-    const tableHead = document.getElementById('table-head');
-    const tableBody = document.getElementById('table-body');
+    const table = document.getElementById('table-laporan');
     
-    tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center;"><div class="spinner spinner-dark"></div> Memuat data...</td></tr>`;
+    // Tampilkan loading
+    table.innerHTML = `<thead></thead><tbody><tr><td colspan="10" style="text-align:center;"><div class="spinner spinner-dark"></div> Memuat data...</td></tr></tbody>`;
 
     let valRuangan, templateKey;
     if (isAdmin) {
@@ -110,17 +110,15 @@ export async function renderLaporanPelayanan(container, state) {
       .eq('ruangan_id', valRuangan)
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
-      .order('tanggal', { ascending: false }); // Urutkan dari terbaru
+      .order('tanggal', { ascending: false }); 
 
     if (error) {
-      tableHead.innerHTML = '';
-      tableBody.innerHTML = `<tr><td colspan="10" class="login-error">Gagal memuat: ${error.message}</td></tr>`;
+      table.innerHTML = `<thead></thead><tbody><tr><td colspan="10" class="login-error">Gagal memuat: ${error.message}</td></tr></tbody>`;
       return;
     }
 
     if (data.length === 0) {
-      tableHead.innerHTML = '';
-      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center;">Tidak ada data pada rentang ini.</td></tr>`;
+      table.innerHTML = `<thead></thead><tbody><tr><td colspan="10" style="text-align:center;">Tidak ada data pada rentang ini.</td></tr></tbody>`;
       return;
     }
 
@@ -128,15 +126,11 @@ export async function renderLaporanPelayanan(container, state) {
     const template = getTemplate(templateKey);
     const numFields = template.fields.filter(f => f.type === 'number' && f.metric);
     
-    // KOSONGKAN HEADER LAMA SEBELUM RENDER BARU (Mencegah Header Ganda)
-    tableHead.innerHTML = '';
-
     let headHTML = `<tr><th>Tanggal</th><th>Shift</th>`;
     numFields.forEach(f => {
       headHTML += `<th>${f.label}</th>`;
     });
     headHTML += `</tr>`;
-    tableHead.innerHTML = headHTML;
 
     // Buat Body Tabel
     let bodyHTML = '';
@@ -148,12 +142,20 @@ export async function renderLaporanPelayanan(container, state) {
       numFields.forEach(f => {
         let val = d.data[f.id];
         if (val === undefined) val = d.data[`jumlah_${f.id}`] || 0;
-        // TAMBAHKAN CLASS text-right DI SINI
         bodyHTML += `<td class="text-right">${val}</td>`;
       });
       bodyHTML += `</tr>`;
     });
-    tableBody.innerHTML = bodyHTML;
+
+    // RAKIT ULANG TABEL DARI NOL (Ini kunci menghilangkan header kosong)
+    table.innerHTML = `
+      <thead style="position: sticky; top: 190px; z-index: 5; background: var(--gray-50);">
+        ${headHTML}
+      </thead>
+      <tbody>
+        ${bodyHTML}
+      </tbody>
+    `;
   }
 
   // Event Export Excel
