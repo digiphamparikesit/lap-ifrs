@@ -8,20 +8,16 @@ import { getTemplate, getGroups } from './templates.js';
 export async function renderFormInput(container, state) {
   const isAdmin = state.profile.role === 'admin';
   
-  // Tampilkan loading
   container.innerHTML = `<div class="loading-state"><div class="spinner spinner-dark"></div> Memuat form…</div>`;
 
-  // Jika Admin, ambil semua daftar ruangan (kecuali ADMIN)
   let listRuangan = [];
   if (isAdmin) {
     const { data } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
     listRuangan = data || [];
   }
 
-  // Tentukan template default
   const defaultTemplateKey = isAdmin ? (listRuangan[0]?.template_key || 'igd') : state.ruangan?.template_key;
   
-  // Render Kerangka Form
   let headerHTML = '';
   if (isAdmin) {
     const opts = listRuangan.map(r => `<option value="${r.template_key}">${r.nama}</option>`).join('');
@@ -45,29 +41,50 @@ export async function renderFormInput(container, state) {
     </form>
   `;
 
-  // Fungsi untuk menggambar field berdasarkan template yang dipilih
   const drawFields = async (templateKey) => {
     const template = getTemplate(templateKey);
     const groups = getGroups(templateKey);
     const dynamicContainer = document.getElementById('dynamic-form-fields');
     
-    let formHTML = '';
+    let formHTML = `<div class="form-layout-2col">`; // Pembungkus 2 Kolom Utama
+
+    // Kelompokkan field menjadi Kiri (0) dan Kanan (1)
+    let colIndex = 0;
+    let currentGroupHTML = '';
+
     groups.forEach(grup => {
-      // Gunakan CSS Grid 4 Kolom untuk form yang padat
-      formHTML += `<div class="form-section" style="grid-column: 1 / -1;"><h3 class="section-title">${grup}</h3><div class="section-body compact-grid">`;
+      // Cek apakah ini grup 'Umum' agar lebarnya penuh (span 2 kolom)
+      const isFullWidthGroup = grup.toLowerCase() === 'umum' || grup.toLowerCase() === 'identitas';
       
+      let groupHTML = `<div class="form-section ${isFullWidthGroup ? 'full-span' : ''}">`;
+      groupHTML += `<h3 class="section-title">${grup}</h3>`;
+      // Form input kita gunakan grid 4 kolom yang padat
+      groupHTML += `<div class="section-body compact-grid">`;
+
       template.fields.forEach(f => {
         if (f.group !== grup) return;
 
-        // Field teks panjang (Petugas & Obat) ambil 1 baris penuh
         const isFullWidth = (f.type === 'petugas' || f.id === 'obat_tidak_terlayani') ? 'span-4' : '';
 
         if (f.type === 'petugas') {
-          formHTML += `
-            <div class="form-group ${isFullWidth}">
-              <label>${f.label} <span class="required">*</span> <small style="font-weight:normal; color:var(--gray-500);">(Centang staff yang bertugas)</small></label>
-              <div id="petugas-container" class="petugas-checklist-wrap">
-                <!-- Daftar checkbox akan dimuat di sini oleh JS -->
+          groupHTML += `
+            <div class="form-group span-4">
+              <label>${f.label} <span class="required">*</span></label>
+              <div id="petugas-container" class="petugas-checklist-wrap" style="position:relative;">
+                <button type="button" id="btn-dropdown-petugas" class="form-control" style="text-align:left; background:#fff; cursor:pointer; display:flex; justify-content:space-between; align-items:center;">
+                  <span id="petugas-label-terpilih" style="color:var(--gray-500);">— Pilih Petugas —</span>
+                  <span style="font-size:0.8rem;">▼</span>
+                </button>
+                <div id="dropdown-petugas" class="petugas-dropdown-menu" hidden>
+                  <div style="padding:8px; border-bottom:1px solid var(--gray-200); background:var(--gray-50);">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:bold; color:var(--green-700);">
+                      <input type="checkbox" id="check-all-petugas" style="width:16px; height:16px;"> Centang Semua
+                    </label>
+                  </div>
+                  <div id="petugas-list-container" class="checkbox-list" style="padding:8px;">
+                    <!-- Render JS -->
+                  </div>
+                </div>
               </div>
               <input type="hidden" id="field-petugas" required />
             </div>
@@ -88,19 +105,39 @@ export async function renderFormInput(container, state) {
           inputHTML = `<input type="${f.type}" id="field-${f.id}" name="${f.id}" value="${defVal}" ${req} ${f.min !== undefined ? `min="${f.min}"` : ''} class="form-control" />`;
         }
 
-        formHTML += `
+        groupHTML += `
           <div class="form-group ${isFullWidth}">
             <label for="field-${f.id}">${f.label}${reqStar}</label>
             ${inputHTML}
           </div>
         `;
       });
-      formHTML += `</div></div>`;
+      groupHTML += `</div></div>`;
+
+      // LOGIKA PEMBAGIAN KOLOM
+      if (isFullWidthGroup) {
+        // Jika Grup Umum, paksa masuk ke kolom 1 (kiri) dan penuhi 2 kolom
+        formHTML += `<div class="full-span">${groupHTML}</div>`;
+      } else {
+        // Jika grup lain, masukkan ke Kiri atau Kanan secara bergantian
+        if (colIndex === 0) {
+          formHTML += `<div class="col-left">${groupHTML}</div>`;
+          colIndex = 1;
+        } else {
+          // Jika kolom kanan sudah ada isinya, tutup dan buka pembungkus baru
+          if (formHTML.includes('col-right')) {
+            formHTML += `<div class="col-left">${groupHTML}</div>`;
+          } else {
+            formHTML += `<div class="col-right">${groupHTML}</div>`;
+          }
+        }
+      }
     });
+    formHTML += `</div>`;
 
     dynamicContainer.innerHTML = formHTML;
 
-    // Ambil daftar staff
+    // Ambil staff & inisialisasi dropdown
     let daftarStaff = [];
     if (isAdmin) {
       const r = listRuangan.find(ru => ru.template_key === templateKey);
@@ -113,10 +150,8 @@ export async function renderFormInput(container, state) {
       daftarStaff = (data || []).map(s => s.staff).filter(Boolean);
     }
 
-    // Inisialisasi Checklist Petugas
     initPetugasChecklist(daftarStaff);
     
-    // Pasang event listener submit
     const formEl = document.getElementById('form-laporan');
     formEl.onsubmit = (e) => {
       const rId = isAdmin ? listRuangan.find(ru => ru.template_key === templateKey)?.id : state.profile.ruangan_id;
@@ -124,10 +159,8 @@ export async function renderFormInput(container, state) {
     };
   };
 
-  // Gambar pertama kali
   await drawFields(defaultTemplateKey);
 
-  // Jika admin, pasang event listener jika dropdown ruangan diganti
   if (isAdmin) {
     document.getElementById('admin-select-ruangan').addEventListener('change', async (e) => {
       await drawFields(e.target.value);
@@ -136,48 +169,94 @@ export async function renderFormInput(container, state) {
 }
 
 /* =========================================================
-   2. LOGIKA CHECKLIST PETUGAS (Multi-Select)
+   2. LOGIKA CHECKLIST PETUGAS (Dropdown & Centang Semua)
    ========================================================= */
 function initPetugasChecklist(daftarStaff) {
-  const container = document.getElementById('petugas-container');
+  const btnDropdown = document.getElementById('btn-dropdown-petugas');
+  const menu = document.getElementById('dropdown-petugas');
+  const listContainer = document.getElementById('petugas-list-container');
+  const label = document.getElementById('petugas-label-terpilih');
   const hiddenInput = document.getElementById('field-petugas');
+  const checkAll = document.getElementById('check-all-petugas');
   
-  let selected = []; // array id staff terpilih
+  let selected = [];
 
-  if (!daftarStaff || daftarStaff.length === 0) {
-    container.innerHTML = `<div style="color:var(--gray-500); font-size:0.9rem;">Tidak ada data staff untuk ruangan ini.</div>`;
-    return;
-  }
-
-  // Urutkan nama staff sesuai abjad
-  daftarStaff.sort((a, b) => a.nama.localeCompare(b.nama));
-
-  // Render checkbox untuk setiap staff
-  let html = `<div class="checkbox-list">`;
-  daftarStaff.forEach(staff => {
-    html += `
-      <label class="checkbox-item">
+  // Render List Checkbox
+  if (daftarStaff.length === 0) {
+    listContainer.innerHTML = `<div style="padding:8px; font-size:0.9rem; color:var(--gray-500);">Tidak ada data staff.</div>`;
+  } else {
+    daftarStaff.sort((a, b) => a.nama.localeCompare(b.nama));
+    listContainer.innerHTML = daftarStaff.map(staff => `
+      <label class="checkbox-item" style="margin-bottom:4px; border:none; background:transparent; padding:6px 8px;">
         <input type="checkbox" class="staff-checkbox" value="${staff.id}" data-nama="${staff.nama}">
         <span class="checkbox-name">${staff.nama}</span>
       </label>
-    `;
-  });
-  html += `</div>`;
-  container.innerHTML = html;
+    `).join('');
+  }
 
-  // Event listener saat checkbox dicentang/dihapus centangnya
-  container.querySelectorAll('.staff-checkbox').forEach(cb => {
+  // Buka/Tutup Dropdown
+  btnDropdown.addEventListener('click', (e) => {
+    e.preventDefault();
+    menu.hidden = !menu.hidden;
+  });
+
+  // Tutup dropdown jika klik di luar
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#petugas-container')) menu.hidden = true;
+  });
+
+  // Event saat checklist individu diubah
+  const checkboxes = listContainer.querySelectorAll('.staff-checkbox');
+  checkboxes.forEach(cb => {
     cb.addEventListener('change', () => {
+      const id = cb.value;
       if (cb.checked) {
-        if (!selected.includes(cb.value)) selected.push(cb.value);
-        cb.closest('.checkbox-item').classList.add('checked');
+        if (!selected.includes(id)) selected.push(id);
+        cb.closest('.checkbox-item').style.background = 'var(--green-50)';
       } else {
-        selected = selected.filter(id => id !== cb.value);
-        cb.closest('.checkbox-item').classList.remove('checked');
+        selected = selected.filter(x => x !== id);
+        cb.closest('.checkbox-item').style.background = 'transparent';
       }
-      hiddenInput.value = selected.join(',');
+      updateUI();
     });
   });
+
+  // Event CENTANG SEMUA
+  checkAll.addEventListener('change', () => {
+    checkboxes.forEach(cb => {
+      cb.checked = checkAll.checked;
+      const id = cb.value;
+      if (checkAll.checked) {
+        if (!selected.includes(id)) selected.push(id);
+        cb.closest('.checkbox-item').style.background = 'var(--green-50)';
+      } else {
+        selected = selected.filter(x => x !== id);
+        cb.closest('.checkbox-item').style.background = 'transparent';
+      }
+    });
+    updateUI();
+  });
+
+  // Update Label & Hidden Input
+  function updateUI() {
+    hiddenInput.value = selected.join(',');
+    
+    if (selected.length === 0) {
+      label.textContent = '— Pilih Petugas —';
+      label.style.color = 'var(--gray-500)';
+    } else if (selected.length === daftarStaff.length) {
+      label.textContent = 'Semua Petugas Terpilih';
+      label.style.color = 'var(--green-700)';
+      label.style.fontWeight = 'bold';
+    } else {
+      label.textContent = `${selected.length} Petugas Terpilih`;
+      label.style.color = 'var(--green-700)';
+      label.style.fontWeight = 'bold';
+    }
+
+    // Reset "Centang Semua" jika tidak semua terpilih
+    checkAll.checked = selected.length === daftarStaff.length && daftarStaff.length > 0;
+  }
 }
 
 /* =========================================================
@@ -208,7 +287,6 @@ async function handleSubmit(e, template, state, finalRId) {
         shift = val;
         dataPayload[f.id] = val;
       } else {
-        // Konversi ke angka jika tipe number
         dataPayload[f.id] = f.type === 'number' ? (parseInt(val) || 0) : val;
       }
     });
@@ -227,24 +305,18 @@ async function handleSubmit(e, template, state, finalRId) {
       created_by: (await supabase.auth.getUser()).data.user.id
     };
 
-    // Simpan (Upsert)
-    const { error } = await supabase
-      .from('laporan')
-      .upsert(payload, { onConflict: 'ruangan_id, tanggal, shift' });
-
+    const { error } = await supabase.from('laporan').upsert(payload, { onConflict: 'ruangan_id, tanggal, shift' });
     if (error) throw error;
 
     alert('✅ Laporan berhasil disimpan!');
     
-    // Reset form
+    // Reset Form
     document.getElementById('field-petugas').value = '';
-    // Uncheck semua checkbox
-    document.querySelectorAll('.staff-checkbox').forEach(cb => {
-      cb.checked = false;
-      cb.closest('.checkbox-item').classList.remove('checked');
-    });
+    document.getElementById('petugas-label-terpilih').textContent = '— Pilih Petugas —';
+    document.getElementById('petugas-label-terpilih').style.color = 'var(--gray-500)';
+    document.querySelectorAll('.staff-checkbox').forEach(cb => { cb.checked = false; cb.closest('.checkbox-item').style.background = 'transparent'; });
+    document.getElementById('check-all-petugas').checked = false;
     
-    // Reset angka
     template.fields.forEach(f => {
       if (f.type === 'number') document.getElementById(`field-${f.id}`).value = '';
     });
