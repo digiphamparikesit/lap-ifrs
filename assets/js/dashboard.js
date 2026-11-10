@@ -122,12 +122,14 @@ export async function renderDashboard(container, state) {
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
 
     ruanganToDraw.forEach((r, index) => {
-      // Tentukan metrik default untuk ruangan ini (Terkunci)
-            // --- BARIS 126 SAMPAI 127 YANG BARU ---
+      // 1. Pindahkan deklarasi dataRuangan ke paling atas
+      const dataRuangan = data.filter(d => d.ruangan_id === r.id);
+
+      // 2. Tentukan metrik default
       let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
       let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
 
-      // PENERJEMAH OTOMATIS (Agar data dari Excel terbaca)
+      // 3. PENERJEMAH OTOMATIS (Agar data dari Excel terbaca)
       if (dataRuangan.length > 0 && dataRuangan[0].data[metricId] === undefined) {
          // Jika tidak ketemu, coba tambahkan 'jumlah_' di depannya
          if (dataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
@@ -138,10 +140,7 @@ export async function renderDashboard(container, state) {
              metricId = 'jumlah_resep_terlayani';
          }
       }
-      
-      // Saring data khusus ruangan ini
-      const dataRuangan = data.filter(d => d.ruangan_id === r.id);
-      
+            
       // Buat Canvas Box
       const boxId = `chart-box-${r.id}`;
       grid.innerHTML += `
