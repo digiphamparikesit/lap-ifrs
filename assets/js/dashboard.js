@@ -8,13 +8,13 @@ let myChart = null;
 // KONFIGURASI METRIK TETAP PER RUANGAN (Terkunci)
 // =========================================================
 const DEFAULT_METRICS = {
-  'ibs': 'operasi_elektif',
-  'igd': 'resep_terlayani',
-  'irin_mat': 'jumlah_resep',
-  'irna1': 'resep_per_shift',
+  'ibs': 'jumlah_operasi_elektif',
+  'igd': 'jumlah_resep_terlayani',
+  'irin_mat': 'jumlah_resep', 
+  'irna1': 'jumlah_resep_per_shift',
   'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika',
-  'rj': 'total_resep',
-  'rj_maternitas': 'total_resep'
+  'rj': 'jumlah_total_resep_harian',
+  'rj_maternitas': 'jumlah_total_resep_harian'
 };
 
 export async function renderDashboard(container, state) {
@@ -123,8 +123,21 @@ export async function renderDashboard(container, state) {
 
     ruanganToDraw.forEach((r, index) => {
       // Tentukan metrik default untuk ruangan ini (Terkunci)
-      const metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
-      const metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
+            // --- BARIS 126 SAMPAI 127 YANG BARU ---
+      let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
+      let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
+
+      // PENERJEMAH OTOMATIS (Agar data dari Excel terbaca)
+      if (dataRuangan.length > 0 && dataRuangan[0].data[metricId] === undefined) {
+         // Jika tidak ketemu, coba tambahkan 'jumlah_' di depannya
+         if (dataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
+             metricId = `jumlah_${metricId}`;
+         } 
+         // Khusus IGD
+         else if (metricId === 'resep_terlayani') {
+             metricId = 'jumlah_resep_terlayani';
+         }
+      }
       
       // Saring data khusus ruangan ini
       const dataRuangan = data.filter(d => d.ruangan_id === r.id);
