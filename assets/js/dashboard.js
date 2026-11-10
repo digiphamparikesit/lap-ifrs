@@ -5,14 +5,14 @@ import { getTemplate, getMetricFields } from './templates.js';
 let myChart = null;
 
 // =========================================================
-// KONFIGURASI DEFAULT METRIK PER RUANGAN
+// KONFIGURASI DEFAULT METRIK PER RUANGAN (Sesuai Permintaan)
 // =========================================================
 const DEFAULT_METRICS = {
   'ibs': 'operasi_elektif',
   'igd': 'resep_terlayani',
   'irin_mat': 'resep_per_shift',
   'irna1': 'resep_per_shift',
-  'onkologi': 'sediaan_sitostatika',
+  'onkologi': 'sediaan_sitostatika', 
   'rj': 'total_resep',
   'rj_maternitas': 'total_resep'
 };
@@ -20,12 +20,8 @@ const DEFAULT_METRICS = {
 export async function renderDashboard(container, state) {
   const isAdmin = state.profile.role === 'admin';
   
-  // 1. Ambil daftar ruangan
+  // Ambil daftar ruangan
   const { data: listRuangan } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
-
-  // Tentukan metrik default untuk ditampilkan di dropdown paling awal (default: IGD)
-  const defaultTemplateKey = isAdmin ? 'igd' : state.ruangan.template_key;
-  const defaultMetric = DEFAULT_METRICS[defaultTemplateKey] || getMetricFields(defaultTemplateKey)[0]?.id;
 
   // HTML Tampilan Dashboard
   container.innerHTML = `
@@ -48,14 +44,7 @@ export async function renderDashboard(container, state) {
           <label style="font-size:.75rem;">Rentang Tanggal</label>
           <input type="text" id="filter-tanggal" class="form-control" placeholder="Pilih rentang..." readonly>
         </div>
-
-        <div class="form-group" style="margin:0; flex:1.5; min-width:180px;">
-          <label style="font-size:.75rem;">Data Grafik (Metrik)</label>
-          <select id="filter-metric" class="form-control">
-            ${getMetricFields(defaultTemplateKey).map(m => `<option value="${m.id}" ${m.id === defaultMetric ? 'selected' : ''}>${m.label}</option>`).join('')}
-          </select>
-        </div>
-
+        
         <div style="display:flex; gap:8px;">
           <button id="btn-export-excel" class="btn-secondary" style="padding: 8px 12px;">📊 Excel</button>
           <button id="btn-export-pdf" class="btn-secondary" style="padding: 8px 12px;">📄 PDF</button>
@@ -63,12 +52,8 @@ export async function renderDashboard(container, state) {
       </div>
     </div>
 
-    <!-- Area Grid Grafik (Multi-line untuk Admin, Single-line untuk Petugas) -->
-    <div id="charts-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:20px;">
-      <!-- Grafik akan di-render di sini -->
-    </div>
+    <div id="charts-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:20px;"></div>
 
-    <!-- Modal Pop-up Grafik Full Screen -->
     <dialog id="modal-chart" style="width:90vw; max-width:1200px; padding:20px; border-radius:12px; border:none; box-shadow:0 10px 40px rgba(0,0,0,.2);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h3 id="modal-title" style="margin:0; color:var(--green-800);">Detail Grafik</h3>
@@ -80,7 +65,7 @@ export async function renderDashboard(container, state) {
     </dialog>
   `;
 
-  // 1. Inisialisasi Kalender
+  // Inisialisasi Kalender
   const today = new Date();
   const startOfYear = new Date(today.getFullYear(), 0, 1);
   const fp = flatpickr("#filter-tanggal", {
@@ -92,27 +77,25 @@ export async function renderDashboard(container, state) {
     }
   });
 
-  // 2. Event Listeners
+  // Event Listener Tahun
   document.getElementById('filter-tahun').addEventListener('change', (e) => {
     const year = parseInt(e.target.value);
     fp.setDate([`${year}-01-01`, `${year}-12-31`]);
     loadAllData();
   });
 
-  document.getElementById('filter-metric').addEventListener('change', loadAllData);
-  
+  // Event Tutup Modal
   document.getElementById('btn-close-modal').addEventListener('click', () => {
     document.getElementById('modal-chart').close();
   });
 
-  // 3. Fungsi Utama Load Data
+  // Fungsi Load Data
   async function loadAllData() {
     const dates = fp.selectedDates;
     if (dates.length !== 2) return;
     
     const startDate = dates[0].toISOString().split('T')[0];
     const endDate = dates[1].toISOString().split('T')[0];
-    const metricId = document.getElementById('filter-metric').value;
     const grid = document.getElementById('charts-grid');
     
     grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat grafik...</div>`;
@@ -124,10 +107,7 @@ export async function renderDashboard(container, state) {
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true });
 
-    // Jika bukan admin, filter hanya ruangannya sendiri
-    if (!isAdmin) {
-      query = query.eq('ruangan_id', state.profile.ruangan_id);
-    }
+    if (!isAdmin) query = query.eq('ruangan_id', state.profile.ruangan_id);
 
     const { data, error } = await query;
 
@@ -136,23 +116,25 @@ export async function renderDashboard(container, state) {
       return;
     }
 
-    grid.innerHTML = ''; // Bersihkan loading
+    grid.innerHTML = '';
 
-    // Tentukan ruangan mana saja yang mau digambar
-    // Jika Admin: gambar SEMUA ruangan. Jika Petugas: gambar 1 ruangan saja.
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
 
-    // Loop setiap ruangan untuk membuat kotak grafik
     ruanganToDraw.forEach((r, index) => {
+      // Tentukan metrik default untuk ruangan ini
+      const metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
+      const metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
+      
       // Saring data khusus ruangan ini
       const dataRuangan = data.filter(d => d.ruangan_id === r.id);
       
       // Buat Canvas Box
       const boxId = `chart-box-${r.id}`;
       grid.innerHTML += `
-        <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDate}')">
+        <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDate}', '${metricLabel}')">
           <h4 style="margin-top:0; color:var(--green-800);">${r.nama}</h4>
-          <div style="position:relative; height:250px;">
+          <p style="font-size:0.8rem; color:var(--gray-500); margin-bottom:8px;">Metrik: ${metricLabel}</p>
+          <div style="position:relative; height:200px;">
             <canvas id="${boxId}"></canvas>
           </div>
         </div>
@@ -181,7 +163,7 @@ export async function renderDashboard(container, state) {
           data: {
             labels: formattedLabels,
             datasets: [{
-              label: document.getElementById('filter-metric').options[document.getElementById('filter-metric').selectedIndex].text,
+              label: metricLabel,
               data: values,
               borderColor: '#16a34a',
               backgroundColor: 'rgba(22, 163, 74, 0.1)',
@@ -203,17 +185,15 @@ export async function renderDashboard(container, state) {
       }, 100 * index);
     });
     
-    // Simpan data mentah untuk Export
     container.dataset.rawData = JSON.stringify(data);
   }
 
-  // 4. Fungsi Buka Pop-up Full Screen
-  window.openFullScreen = (ruanganId, ruanganNama, metricId, startDate, endDate) => {
+  // Fungsi Buka Pop-up Full Screen
+  window.openFullScreen = (ruanganId, ruanganNama, metricId, startDate, endDate, metricLabel) => {
     const dialog = document.getElementById('modal-chart');
-    document.getElementById('modal-title').textContent = `Grafik Detail: ${ruanganNama}`;
+    document.getElementById('modal-title').textContent = `Grafik Detail: ${ruanganNama} (${metricLabel})`;
     dialog.showModal();
 
-    // Ambil data ulang khusus untuk grafik besar
     supabase.from('laporan')
       .select('tanggal, data')
       .eq('ruangan_id', ruanganId)
@@ -233,7 +213,7 @@ export async function renderDashboard(container, state) {
           data: {
             labels: formattedLabels,
             datasets: [{
-              label: document.getElementById('filter-metric').options[document.getElementById('filter-metric').selectedIndex].text,
+              label: metricLabel,
               data: values,
               borderColor: '#16a34a',
               backgroundColor: 'rgba(22, 163, 74, 0.1)',
@@ -253,6 +233,5 @@ export async function renderDashboard(container, state) {
       });
   };
 
-  // Panggil fungsi pertama kali
   await loadAllData();
 }
