@@ -10,10 +10,15 @@ export async function renderPresensi(container, state) {
     listRuangan = data || [];
   }
 
+  // Ambil daftar semua staff untuk dropdown pencarian
+  const { data: masterStaff } = await supabase.from('staff').select('id, nama').order('nama');
+
   container.innerHTML = `
     <div class="dashboard-header">
       <h2 class="page-title">Presensi / Kehadiran Staff</h2>
+      
       <div class="filter-bar" style="align-items:flex-end; display:flex; flex-wrap:wrap; gap:12px; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom:24px;">
+        
         ${isAdmin ? `
         <div class="form-group" style="margin:0; flex:1; min-width:200px;">
           <label style="font-size:.75rem;">Pilih Ruangan</label>
@@ -21,6 +26,15 @@ export async function renderPresensi(container, state) {
             ${listRuangan.map(r => `<option value="${r.id}">${r.nama}</option>`).join('')}
           </select>
         </div>` : ''}
+
+        <div class="form-group" style="margin:0; flex:1; min-width:200px;">
+          <label style="font-size:.75rem;">Cari Nama Staff (Spesifik)</label>
+          <select id="filter-staff" class="form-control">
+            <option value="">-- Semua Staff --</option>
+            ${masterStaff.map(s => `<option value="${s.id}" data-nama="${s.nama}">${s.nama}</option>`).join('')}
+          </select>
+        </div>
+
         <div class="form-group" style="margin:0; flex:1; min-width:120px;">
           <label style="font-size:.75rem;">Tahun</label>
           <select id="filter-tahun" class="form-control">
@@ -30,6 +44,7 @@ export async function renderPresensi(container, state) {
             <option value="2023">2023</option>
           </select>
         </div>
+
         <div class="form-group" style="margin:0; flex:2; min-width:250px;">
           <label style="font-size:.75rem;">Rentang Tanggal</label>
           <input type="text" id="filter-tanggal" class="form-control" placeholder="Pilih rentang..." readonly>
@@ -38,7 +53,7 @@ export async function renderPresensi(container, state) {
     </div>
 
     <div class="table-card">
-      <h3 class="section-title">Rekap Kehadiran Staff</h3>
+      <h3 class="section-title" id="table-title">Rekap Kehadiran Staff</h3>
       <div class="table-responsive">
         <table class="data-table" id="table-presensi">
           <thead>
@@ -77,6 +92,9 @@ export async function renderPresensi(container, state) {
   if (isAdmin) {
     document.getElementById('filter-ruangan').addEventListener('change', loadData);
   }
+  
+  // Listener untuk pencarian staff
+  document.getElementById('filter-staff').addEventListener('change', loadData);
 
   async function loadData() {
     const dates = fp.selectedDates;
@@ -85,70 +103,81 @@ export async function renderPresensi(container, state) {
     const startDate = dates[0].toISOString().split('T')[0];
     const endDate = dates[1].toISOString().split('T')[0];
     const tableBody = document.getElementById('table-body');
+    const tableTitle = document.getElementById('table-title');
     
     tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;"><div class="spinner spinner-dark"></div> Memuat data...</td></tr>`;
 
     let valRuangan = isAdmin ? document.getElementById('filter-ruangan').value : state.profile.ruangan_id;
+    const valStaffId = document.getElementById('filter-staff').value;
 
-    // Ambil data laporan
-    const { data, error } = await supabase.from('laporan')
+    // Query dasar
+    let query = supabase.from('laporan')
       .select('tanggal, petugas_ids, data')
-      .eq('ruangan_id', valRuangan)
+      .eq('ruangan_id', valRuangan) // Tetap filter ruangan agar pencarian lebih cepat
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       tableBody.innerHTML = `<tr><td colspan="4" class="login-error">Gagal memuat: ${error.message}</td></tr>`;
       return;
     }
 
-    // Ambil master data staff
     const { data: staffList } = await supabase.from('staff').select('id, nama');
     const staffMap = {};
     if (staffList) staffList.forEach(s => staffMap[s.id] = s.nama);
 
     const rekap = {}; 
-    const hitungNama = (nama, tanggal) => {
-      // Bersihkan spasi dan cek
-      const cleanName = nama.trim();
-      if (!cleanName) return;
-      
-      // Cari apakah nama ini ada di master staff (untuk menyeragamkan ejaan)
-      const match = Object.values(staffMap).find(nAsli => 
-        nAsli.toLowerCase().includes(cleanName.toLowerCase().split(',')[0])
-      );
-      
-      const finalName = match || cleanName;
-
-      if (!rekap[finalName]) rekap[finalName] = { count: 0, lastDate: tanggal };
-      rekap[finalName].count++;
-      if (tanggal > rekap[finalName].lastDate) rekap[finalName].lastDate = tanggal;
+    const tambahRekap = (nama, tanggal) => {
+      if (!nama || nama.trim() === '') return;
+      const clean = nama.trim();
+      if (!rekap[clean]) rekap[clean] = { count: 0, lastDate: tanggal };
+      rekap[clean].count++;
+      if (tanggal > rekap[clean].lastDate) rekap[clean].lastDate = tanggal;
     };
 
+    // Filter data
     data.forEach(lap => {
-      // 1. Baca dari inputan baru (UUID)
-      if (lap.petugas_ids && lap.petugas_ids.length > 0) {
-        lap.petugas_ids.forEach(id => {
-          hitungNama(staffMap[id] || 'Staff Baru', lap.tanggal);
-        });
-      }
+      // A. Logika Pencarian Staff Spesifik
+      if (valStaffId) {
+        const targetName = staffMap[valStaffId];
+        let isHadir = false;
+
+        // Cek UUID
+        if (lap.petugas_ids && lap.petugas_ids.includes(valStaffId)) {
+          isHadir = true;
+        }
+        
+        // Cek Teks (Jika UUID kosong atau data lama)
+        if (!isHadir && lap.data) {
+           Object.values(lap.data).forEach(val => {
+              if (typeof val === 'string' && val.toLowerCase().includes(targetName.toLowerCase().split(',')[0])) {
+                 isHadir = true;
+              }
+           });
+        }
+
+        if (isHadir) tambahRekap(targetName, lap.tanggal);
+      } 
       
-      // 2. Baca dari data migrasi Excel (Teks)
-      if (lap.data) {
-        Object.keys(lap.data).forEach(key => {
-          // SANGAT KETAT: Hanya ambil key yang ada kata "petugas" tapi BUKAN "ids"
-          if (key.toLowerCase().includes('petugas') && !key.toLowerCase().includes('ids')) {
-            let val = lap.data[key];
-            
-            // Pastikan isinya string dan bukan angka
-            if (typeof val === 'string' && val.trim() !== '' && isNaN(val)) {
-              // Pisahkan jika ada koma (misal: "Budi, Ani")
-              const listNama = val.split(',').map(s => s.trim());
-              listNama.forEach(n => hitungNama(n, lap.tanggal));
-            }
-          }
-        });
+      // B. Logika Rekap Semua Staff (Jika tidak ada filter staff)
+      else {
+        // UUID
+        if (lap.petugas_ids && lap.petugas_ids.length > 0) {
+          lap.petugas_ids.forEach(id => {
+            tambahRekap(staffMap[id] || 'Staff Baru', lap.tanggal);
+          });
+        }
+        
+        // Teks dari JSON (Migrasi Baru)
+        if (lap.data && lap.data.nama_petugas_teks) {
+          const listNama = lap.data.nama_petugas_teks.split('|').map(s => s.trim());
+          listNama.forEach(nama => {
+            if (nama) tambahRekap(nama, lap.tanggal);
+          });
+        }
       }
     });
 
@@ -157,6 +186,12 @@ export async function renderPresensi(container, state) {
       total: rekap[nama].count,
       lastDate: rekap[nama].lastDate
     })).sort((a, b) => b.total - a.total);
+
+    if (valStaffId) {
+      tableTitle.textContent = `Rekap Kehadiran: ${staffMap[valStaffId]}`;
+    } else {
+      tableTitle.textContent = 'Rekap Kehadiran Staff (Semua)';
+    }
 
     if (resultArray.length === 0) {
       tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center;">Tidak ada data presensi pada rentang ini.</td></tr>`;
