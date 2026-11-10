@@ -6,6 +6,7 @@ import { renderPengaturan as loadPengaturan } from './pengaturan.js'; // <-- TAM
 import { renderDashboard as loadDashboard } from './dashboard.js'; // <-- TAMBAHKAN INI (BARIS BARU)
 import { renderLaporanPelayanan } from './laporan_pelayanan.js';
 import { renderPresensi } from './presensi.js';
+import { renderPencarianStaff } from './pencarian_staff.js';
 
 // State global user
 export const state = {
@@ -77,6 +78,7 @@ const routes = {
   'laporan-pelayanan': renderLaporanPelayanan, // Rute Baru
   'staff': renderStaff,
   'presensi': renderPresensi,
+  'pencarian-staff': renderPencarianStaff,
   'pengaturan': renderPengaturan
 };
 
