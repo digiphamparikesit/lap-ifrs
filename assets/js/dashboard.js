@@ -5,14 +5,14 @@ import { getTemplate, getMetricFields } from './templates.js';
 let myChart = null;
 
 // =========================================================
-// KONFIGURASI DEFAULT METRIK PER RUANGAN (Sesuai Permintaan)
+// KONFIGURASI METRIK TETAP PER RUANGAN (Terkunci)
 // =========================================================
 const DEFAULT_METRICS = {
   'ibs': 'operasi_elektif',
   'igd': 'resep_terlayani',
   'irin_mat': 'resep_per_shift',
   'irna1': 'resep_per_shift',
-  'onkologi': 'sediaan_sitostatika', 
+  'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika',
   'rj': 'total_resep',
   'rj_maternitas': 'total_resep'
 };
@@ -23,14 +23,14 @@ export async function renderDashboard(container, state) {
   // Ambil daftar ruangan
   const { data: listRuangan } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
 
-  // HTML Tampilan Dashboard
+  // HTML Tampilan Dashboard (Hanya Filter Tahun & Tanggal)
   container.innerHTML = `
     <div class="dashboard-header">
       <h2 class="page-title">Dashboard Pelayanan</h2>
       
       <div class="filter-bar" style="align-items:flex-end; display:flex; flex-wrap:wrap; gap:12px; background:#fff; padding:16px; border-radius:12px; border:1px solid var(--gray-200); margin-bottom:24px;">
         
-        <div class="form-group" style="margin:0; flex:1; min-width:150px;">
+        <div class="form-group" style="margin:0; flex:1; min-width:120px;">
           <label style="font-size:.75rem;">Tahun</label>
           <select id="filter-tahun" class="form-control">
             <option value="2026">2026</option>
@@ -54,6 +54,7 @@ export async function renderDashboard(container, state) {
 
     <div id="charts-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap:20px;"></div>
 
+    <!-- Modal Pop-up Grafik Full Screen -->
     <dialog id="modal-chart" style="width:90vw; max-width:1200px; padding:20px; border-radius:12px; border:none; box-shadow:0 10px 40px rgba(0,0,0,.2);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
         <h3 id="modal-title" style="margin:0; color:var(--green-800);">Detail Grafik</h3>
@@ -121,7 +122,7 @@ export async function renderDashboard(container, state) {
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
 
     ruanganToDraw.forEach((r, index) => {
-      // Tentukan metrik default untuk ruangan ini
+      // Tentukan metrik default untuk ruangan ini (Terkunci)
       const metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
       const metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
       
@@ -185,6 +186,7 @@ export async function renderDashboard(container, state) {
       }, 100 * index);
     });
     
+    // Simpan data mentah untuk Export
     container.dataset.rawData = JSON.stringify(data);
   }
 
@@ -233,5 +235,6 @@ export async function renderDashboard(container, state) {
       });
   };
 
+  // Panggil fungsi pertama kali
   await loadAllData();
 }
