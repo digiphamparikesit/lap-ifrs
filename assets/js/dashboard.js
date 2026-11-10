@@ -10,7 +10,7 @@ let myChart = null;
 const DEFAULT_METRICS = {
   'ibs': 'operasi_elektif',
   'igd': 'resep_terlayani',
-  'irin_mat': 'resep_per_shift',
+  'irin_mat': 'jumlah_resep',
   'irna1': 'resep_per_shift',
   'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika',
   'rj': 'total_resep',
