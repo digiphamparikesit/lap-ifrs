@@ -152,13 +152,21 @@ export async function renderPresensi(container, state) {
         
         // Cek Teks (Jika UUID kosong atau data lama)
         if (!isHadir && lap.data) {
-           // Ambil kata pertama dari nama target (misal: "Desi" dari "Desi Ana")
-           const kataPertama = targetName.toLowerCase().split(' ')[0];
+           // Ambil nama depan target (misal: "desi" dari "Desi Ana")
+           const kataPertamaTarget = targetName.toLowerCase().split(' ')[0];
 
            Object.values(lap.data).forEach(val => {
-              // Cek apakah isinya teks dan mengandung kata pertama
-              if (typeof val === 'string' && val.toLowerCase().includes(kataPertama)) {
-                 isHadir = true;
+              if (typeof val === 'string' && val.trim() !== '' && !isNaN(val)) {
+                 // PECAH TEKS BERDASARKAN KOMA
+                 // (Misal: "Febrianto, Risma Saputri" menjadi ["Febrianto", "Risma Saputri"])
+                 const listNama = val.split(',').map(s => s.trim());
+                 
+                 // Cek tiap potongan nama
+                 listNama.forEach(nama => {
+                    if (nama.toLowerCase().includes(kataPertamaTarget)) {
+                       isHadir = true;
+                    }
+                 });
               }
            });
         }
