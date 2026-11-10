@@ -134,15 +134,18 @@ export const TEMPLATES = {
       { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum',
         opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'middle', label: 'Middle' }, { value: 'sore', label: 'Sore' }] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
-      { id: 'pasien_kemoterapi', label: 'Jumlah Pasien Kemoterapi', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
-      { id: 'sediaan_sitostatika', label: 'Jumlah Sediaan IV Admixture Sitostatika', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
-      { id: 'sediaan_tpn', label: 'Jumlah Sediaan IV Admixture TPN', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
-      { id: 'sediaan_elektrolit', label: 'Jumlah Sediaan IV Admixture Elektrolit Pekat', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
-      { id: 'pasien_picu', label: 'Jumlah Pasien Ruangan PICU', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-      { id: 'pasien_perinatologi', label: 'Jumlah Pasien Ruangan Perinatologi', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-      { id: 'pasien_enggang2', label: 'Jumlah Pasien Ruangan Enggang 2 Anak', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-      { id: 'pasien_vip_punai1', label: 'Jumlah Pasien Ruangan VIP Punai 1', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
-      { id: 'pasien_intermediate', label: 'Jumlah Pasien Ruangan Intermediate (UPSS)', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
+      
+      // --- UBAH BAGIAN INI ---
+      { id: 'jumlah_pasien_kemoterapi', label: 'Jumlah Pasien Kemoterapi', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
+      { id: 'jumlah_sediaan_iv_admixture_sitostatika', label: 'Jumlah Sediaan IV Admixture Sitostatika', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
+      { id: 'jumlah_sediaan_iv_admixture_tpn', label: 'Jumlah Sediaan IV Admixture TPN', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
+      { id: 'jumlah_sediaan_iv_admixture_elektrolit_pekat', label: 'Jumlah Sediaan IV Admixture Elektrolit Pekat', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
+      
+      { id: 'jumlah_pasien_ruangan_picu', label: 'Jumlah Pasien Ruangan PICU', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
+      { id: 'jumlah_pasien_ruangan_perinatologi', label: 'Jumlah Pasien Ruangan Perinatologi', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
+      { id: 'jumlah_pasien_ruangan_enggang_2_anak', label: 'Jumlah Pasien Ruangan Enggang 2 Anak', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
+      { id: 'jumlah_pasien_ruangan_vip_punai_1', label: 'Jumlah Pasien Ruangan VIP Punai 1', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
+      { id: 'jumlah_pasien_ruangan_intermediate_upss', label: 'Jumlah Pasien Ruangan Intermediate (UPSS)', type: 'number', min: 0, metric: true, group: 'Pasien per Ruangan' },
     ],
   },
 };
