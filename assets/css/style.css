@@ -501,3 +501,93 @@ dialog {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* =========================================================
+   LAYOUT FORM 2 KOLOM UTAMA
+   ========================================================= */
+.form-layout-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Membagi layar jadi 2 bagian */
+  gap: 20px;
+  align-items: start;
+}
+
+/* Grup yang butuh lebar penuh (seperti Umum/Tanggal/Petugas) */
+.full-span {
+  grid-column: 1 / -1;
+}
+
+/* Kolom kiri dan kanan pembungkus section */
+.col-left, .col-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Agar di HP jadi 1 kolom ke bawah */
+@media (max-width: 768px) {
+  .form-layout-2col { grid-template-columns: 1fr; }
+}
+
+/* =========================================================
+   FORM INPUT COMPACT (4 Kolom)
+   ========================================================= */
+.section-body.compact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 16px 20px;
+}
+.span-4 { grid-column: span 4; }
+
+@media (max-width: 1024px) {
+  .section-body.compact-grid { grid-template-columns: repeat(2, 1fr); }
+  .span-4 { grid-column: span 2; }
+}
+@media (max-width: 600px) {
+  .section-body.compact-grid { grid-template-columns: 1fr; }
+  .span-4 { grid-column: span 1; }
+}
+.compact-grid .form-group { margin-bottom: 0; }
+.compact-grid .form-group label { font-size: 0.8rem; margin-bottom: 4px; }
+.compact-grid .form-group input,
+.compact-grid .form-group select {
+  padding: 8px 10px;
+  font-size: 0.9rem;
+}
+
+/* =========================================================
+   DROPDOWN CHECKLIST PETUGAS
+   ========================================================= */
+.petugas-checklist-wrap {
+  position: relative;
+}
+
+.petugas-dropdown-menu {
+  position: absolute;
+  top: 100%; left: 0; right: 0;
+  background: #fff;
+  border: 1px solid var(--gray-300);
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 100;
+  margin-top: 4px;
+}
+
+#petugas-list-container .checkbox-item {
+  border-radius: 4px;
+}
+#petugas-list-container .checkbox-item:hover {
+  background: var(--green-50) !important;
+}
+
+/* Form Footer Action */
+.form-actions {
+  padding: 16px 20px;
+  background: #fff;
+  border-top: 1px solid var(--gray-200);
+  text-align: right;
+  border-radius: 0 0 12px 12px;
+}
