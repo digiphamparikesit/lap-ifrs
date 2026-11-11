@@ -99,7 +99,7 @@ export async function renderLaporanHarian(container, state) {
         }
       });
 
-      / Siapkan ringkasan angka (Gunakan DEFAULT_METRICS)
+      // Siapkan ringkasan angka (Gunakan DEFAULT_METRICS)
       const template = getTemplate(r.template_key);
       
       // Ambil metricId dari konfigurasi default, atau field metric pertama
@@ -134,7 +134,7 @@ export async function renderLaporanHarian(container, state) {
           </div>
           <div style="padding:16px;">
             <p style="margin:0 0 8px; font-size:0.9rem;">
-              <strong>${labelUtama}:</strong> <span style="font-size:1.1rem; font-weight:bold; color:var(--green-700);">${totalAngka}</span>
+              <strong>${metricLabel}:</strong> <span style="font-size:1.1rem; font-weight:bold; color:var(--green-700);">${totalAngka}</span>
             </p>
             ${shiftHTML}
             <p style="margin:8px 0 0; font-size:0.85rem; color:var(--gray-700);">
@@ -165,15 +165,11 @@ export async function renderLaporanHarian(container, state) {
   await loadHarianData();
 }
 
-// Fungsi Export (Sederhana)
+// Fungsi Export Sederhana
 function exportHarianData(container, type, selectedDate, listRuangan) {
   if (!container.dataset.rawData) return alert("Tidak ada data.");
   const data = JSON.parse(container.dataset.rawData);
   if (data.length === 0) return alert("Data kosong di tanggal ini.");
-
-  // Ambil master staff
-  // (Karena export ini butuh mapping nama, kita ambil ulang via fetch atau biarkan sederhana)
-  // Untuk mempermudah, kita buat script export text sederhana:
   
   let content = `Laporan Harian Terpadu - ${selectedDate}\n\n`;
   
@@ -184,7 +180,6 @@ function exportHarianData(container, type, selectedDate, listRuangan) {
     content += `RUANGAN: ${r.nama}\n`;
     content += `Jumlah Shift: ${lapRuangan.length}\n`;
     
-    // Ambil semua data JSON dan tampilkan
     lapRuangan.forEach(lap => {
        content += ` - Shift: ${lap.shift || '-'}\n`;
        content += `   Data: ${JSON.stringify(lap.data)}\n`;
@@ -193,7 +188,6 @@ function exportHarianData(container, type, selectedDate, listRuangan) {
   });
 
   if (type === 'excel') {
-    // Download as text (bisa dibuka di Excel)
     const blob = new Blob([content], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
