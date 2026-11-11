@@ -2,6 +2,17 @@
 import { supabase } from './supabase.js';
 import { getTemplate } from './templates.js';
 
+// KONFIGURASI SAMA PERSIS DENGAN DASHBOARD.JS
+const DEFAULT_METRICS = {
+  'ibs': 'jumlah_operasi_elektif',
+  'igd': 'jumlah_resep_terlayani',
+  'irin_mat': 'jumlah_resep', 
+  'irna1': 'jumlah_resep_per_shift',
+  'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika',
+  'rj': 'jumlah_total_resep_harian',
+  'rj_maternitas': 'jumlah_total_resep_harian'
+};
+
 export async function renderLaporanHarian(container, state) {
   // Tampilan Filter (Hanya Tanggal)
   container.innerHTML = `
@@ -88,17 +99,21 @@ export async function renderLaporanHarian(container, state) {
         }
       });
 
-      // Siapkan ringkasan angka (Ambil dari shift pertama jika ada, atau total)
-      // Kita ambil metrik utama dari template ruangan
+      / Siapkan ringkasan angka (Gunakan DEFAULT_METRICS)
       const template = getTemplate(r.template_key);
-      const metricUtama = template.fields.find(f => f.metric); // Ambil metric pertama sebagai contoh
-      const labelUtama = metricUtama ? metricUtama.label : 'Data';
+      
+      // Ambil metricId dari konfigurasi default, atau field metric pertama
+      const metricId = DEFAULT_METRICS[r.template_key] || template.fields.find(f => f.metric)?.id;
+      const metricLabel = template.fields.find(f => f.id === metricId)?.label || 'Data';
 
       let totalAngka = 0;
       lapRuangan.forEach(lap => {
-        if (metricUtama) {
-          let val = lap.data[metricUtama.id];
-          if (val === undefined) val = lap.data[`jumlah_${metricUtama.id}`];
+        if (metricId) {
+          let val = lap.data[metricId];
+          // Jika tidak ketemu, coba tanpa 'jumlah_'
+          if (val === undefined && metricId.startsWith('jumlah_')) {
+             val = lap.data[metricId.replace('jumlah_', '')];
+          }
           totalAngka += (parseInt(val) || 0);
         }
       });
