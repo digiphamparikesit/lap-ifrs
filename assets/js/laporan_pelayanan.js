@@ -145,12 +145,13 @@ export async function renderLaporanPelayanan(container, state) {
       numFields.forEach(f => {
         let val = d.data[f.id];
         if (val === undefined) val = d.data[`jumlah_${f.id}`] || 0;
-        bodyHTML += `<td class="text-right">${val}</td>`;
+        // Rata kanan & perlebar sedikit
+        bodyHTML += `<td class="text-right" style="padding:6px 8px; font-size:0.8rem;">${val}</td>`;
       });
       
-      // TOMBOL EDIT
-      bodyHTML += `<td style="text-align:center;">
-          <button type="button" class="btn-secondary btn-edit-lap" data-id="${d.id}" style="padding:4px 8px; font-size:0.8rem; border-color:var(--gray-300); color:var(--gray-700);">✏️ Edit</button>
+      // TOMBOL EDIT TETAP ADA
+      bodyHTML += `<td style="text-align:center; padding:6px 4px;">
+          <button type="button" class="btn-secondary btn-edit-lap" data-id="${d.id}" style="padding:4px 6px; font-size:0.75rem; border-color:var(--gray-300); color:var(--gray-700);">✏️ Edit</button>
         </td>
       </tr>`;
     });
