@@ -52,7 +52,7 @@ export async function renderLaporanPelayanan(container, state) {
     <div class="table-card">
       <div class="table-responsive">
         <table class="data-table" id="table-laporan">
-          <thead id="table-head" style="position: sticky; top: 190px; z-index: 5; background: var(--gray-50);"></thead>
+          <thead id="table-head"></thead>
           <tbody id="table-body">
             <tr><td colspan="10" style="text-align:center;">Memuat data...</td></tr>
           </tbody>
@@ -92,7 +92,6 @@ export async function renderLaporanPelayanan(container, state) {
     const endDate = dates[1].toISOString().split('T')[0];
     const table = document.getElementById('table-laporan');
     
-    // Tampilkan loading
     table.innerHTML = `<thead></thead><tbody><tr><td colspan="10" style="text-align:center;"><div class="spinner spinner-dark"></div> Memuat data...</td></tr></tbody>`;
 
     let valRuangan, templateKey;
@@ -105,8 +104,9 @@ export async function renderLaporanPelayanan(container, state) {
       templateKey = state.ruangan.template_key;
     }
 
+    // QUERY HANYA SEKALI (Termasuk ID untuk keperluan Edit)
     const { data, error } = await supabase.from('laporan')
-      .select('tanggal, shift, data')
+      .select('id, tanggal, shift, data, petugas_ids')
       .eq('ruangan_id', valRuangan)
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
@@ -122,17 +122,20 @@ export async function renderLaporanPelayanan(container, state) {
       return;
     }
 
-    // Buat Header Tabel Dinamis
+    // Simpan data mentah ke memori
+    window.rawLaporanData = data;
+
     const template = getTemplate(templateKey);
     const numFields = template.fields.filter(f => f.type === 'number' && f.metric);
     
+    // Rakit Header
     let headHTML = `<tr><th>Tanggal</th><th>Shift</th>`;
     numFields.forEach(f => {
       headHTML += `<th>${f.label}</th>`;
     });
-    headHTML += `</tr>`;
+    headHTML += `<th style="width:80px;">Aksi</th></tr>`;
 
-    // Buat Body Tabel
+    // Rakit Body
     let bodyHTML = '';
     data.forEach(d => {
       bodyHTML += `<tr>
@@ -144,18 +147,29 @@ export async function renderLaporanPelayanan(container, state) {
         if (val === undefined) val = d.data[`jumlah_${f.id}`] || 0;
         bodyHTML += `<td class="text-right">${val}</td>`;
       });
-      bodyHTML += `</tr>`;
+      
+      // TOMBOL EDIT
+      bodyHTML += `<td style="text-align:center;">
+          <button type="button" class="btn-secondary btn-edit-lap" data-id="${d.id}" style="padding:4px 8px; font-size:0.8rem; border-color:var(--gray-300); color:var(--gray-700);">✏️ Edit</button>
+        </td>
+      </tr>`;
     });
 
-    // RAKIT ULANG TABEL DARI NOL (Ini kunci menghilangkan header kosong)
-    table.innerHTML = `
-      <thead>
-        ${headHTML}
-      </thead>
-      <tbody>
-        ${bodyHTML}
-      </tbody>
-    `;
+    // Render Tabel
+    table.innerHTML = `<thead>${headHTML}</thead><tbody>${bodyHTML}</tbody>`;
+
+    // EVENT LISTENER UNTUK TOMBOL EDIT
+    document.querySelectorAll('.btn-edit-lap').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.dataset.id;
+        const lap = window.rawLaporanData.find(item => item.id === id);
+        
+        if (lap) {
+          sessionStorage.setItem('edit_laporan', JSON.stringify(lap));
+          window.location.hash = '#/input'; // Pindah ke form input
+        }
+      });
+    });
   }
 
   // Event Export Excel
