@@ -129,11 +129,18 @@ export async function renderLaporanPelayanan(container, state) {
     const numFields = template.fields.filter(f => f.type === 'number' && f.metric);
     
     // Rakit Header
-    let headHTML = `<tr><th>Tanggal</th><th>Shift</th>`;
+    let headHTML = `<tr>
+      <th style="width: 100px;">Tanggal</th>
+      <th style="width: 80px;">Shift</th>`;
+      
     numFields.forEach(f => {
-      headHTML += `<th>${f.label}</th>`;
+      // Potong teks label yang panjang agar tidak melebar
+      // (Misal: "Jumlah Resep Racikan (Puyer)" menjadi "Racikan (Puyer)")
+      let labelPendek = f.label.replace(/Jumlah |Resep |Pasien /g, ''); 
+      headHTML += `<th style="text-align:center; font-size:0.75rem; padding:8px 4px; width: 80px;">${labelPendek}</th>`;
     });
-    headHTML += `<th style="width:80px;">Aksi</th></tr>`;
+    
+    headHTML += `<th style="width:70px; font-size:0.75rem; text-align:center;">Aksi</th></tr>`;
 
     // Rakit Body
     let bodyHTML = '';
