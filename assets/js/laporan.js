@@ -8,6 +8,14 @@ import { getTemplate, getGroups } from './templates.js';
 export async function renderFormInput(container, state) {
   const isAdmin = state.profile.role === 'admin';
   
+  // 1. CEK DATA EDIT DI SINI (Hanya satu kali)
+  const editDataStr = sessionStorage.getItem('edit_laporan');
+  let editData = null;
+  if (editDataStr) {
+    editData = JSON.parse(editDataStr);
+    sessionStorage.removeItem('edit_laporan'); 
+  }
+  
   container.innerHTML = `<div class="loading-state"><div class="spinner spinner-dark"></div> Memuat form…</div>`;
 
   let listRuangan = [];
@@ -31,7 +39,6 @@ export async function renderFormInput(container, state) {
     `;
   }
 
-  // Tambahkan Modal Dialog untuk Petugas di HTML
   container.innerHTML = `
     <form id="form-laporan" class="form-laporan">
       ${headerHTML}
@@ -41,24 +48,18 @@ export async function renderFormInput(container, state) {
       </div>
     </form>
 
-    <!-- Modal Checklist Petugas -->
     <dialog id="modal-petugas" class="modal-petugas">
       <div class="modal-header">
         <h3 style="margin:0; color:var(--green-800);">Pilih Petugas Bertugas</h3>
         <button type="button" id="btn-close-petugas" class="modal-close">×</button>
       </div>
-      
       <div class="modal-toolbar">
         <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:bold; color:var(--green-700);">
           <input type="checkbox" id="check-all-petugas" style="width:18px; height:18px;"> Centang Semua
         </label>
         <span id="count-terpilih" style="font-size:0.85rem; color:var(--gray-500);">0 Terpilih</span>
       </div>
-
-      <div id="petugas-modal-list" class="modal-body-grid">
-        <!-- Checkbox list dimuat di sini -->
-      </div>
-
+      <div id="petugas-modal-list" class="modal-body-grid"></div>
       <div class="modal-footer">
         <button type="button" id="btn-selesai-petugas" class="btn-primary" style="width:auto; padding:10px 24px;">Selesai</button>
       </div>
@@ -71,12 +72,10 @@ export async function renderFormInput(container, state) {
     const dynamicContainer = document.getElementById('dynamic-form-fields');
     
     let formHTML = `<div class="form-layout-2col">`;
-
     let colIndex = 0;
 
     groups.forEach(grup => {
       const isFullWidthGroup = grup.toLowerCase() === 'umum' || grup.toLowerCase() === 'identitas';
-      
       let groupHTML = `<div class="form-section ${isFullWidthGroup ? 'full-span' : ''}">`;
       groupHTML += `<h3 class="section-title">${grup}</h3>`;
       groupHTML += `<div class="section-body compact-grid">`;
@@ -87,7 +86,6 @@ export async function renderFormInput(container, state) {
         const isFullWidth = (f.type === 'petugas' || f.id === 'obat_tidak_terlayani') ? 'span-4' : '';
 
         if (f.type === 'petugas') {
-          // Tampilan Tombol Pemicu Modal (Bukan Dropdown Biasa)
           groupHTML += `
             <div class="form-group span-4">
               <label>${f.label} <span class="required">*</span></label>
@@ -156,6 +154,40 @@ export async function renderFormInput(container, state) {
     }
 
     initPetugasModal(daftarStaff);
+
+    // JIKA MODE EDIT, ISI FORM DENGAN DATA LAMA (Setelah modal siap)
+    if (editData) {
+      if (document.getElementById('field-tanggal')) document.getElementById('field-tanggal').value = editData.tanggal;
+      if (document.getElementById('field-shift')) document.getElementById('field-shift').value = editData.shift;
+      
+      template.fields.forEach(f => {
+        if (f.type === 'number' || f.type === 'time') {
+          const el = document.getElementById(`field-${f.id}`);
+          if (el && editData.data[f.id] !== undefined) el.value = editData.data[f.id];
+          else if (el && editData.data[`jumlah_${f.id}`] !== undefined) el.value = editData.data[`jumlah_${f.id}`];
+        }
+      });
+
+      // Ubah tombol simpan jadi "Update"
+      const btnSimpan = document.getElementById('btn-simpan');
+      if (btnSimpan) {
+        btnSimpan.textContent = 'Update Laporan';
+        btnSimpan.style.background = 'linear-gradient(135deg, #d97706, #b45309)'; // Oranye
+      }
+
+      // Centang Petugas (Berikan delay agar modal selesai render)
+      setTimeout(() => {
+         if (editData.petugas_ids && editData.petugas_ids.length > 0) {
+            editData.petugas_ids.forEach(id => {
+               const cb = document.querySelector(`.staff-checkbox-modal[value="${id}"]`);
+               if (cb) {
+                 cb.checked = true;
+                 cb.dispatchEvent(new Event('change')); 
+               }
+            });
+         }
+      }, 300);
+    }
     
     const formEl = document.getElementById('form-laporan');
     formEl.onsubmit = (e) => {
@@ -189,7 +221,6 @@ function initPetugasModal(daftarStaff) {
   
   let selected = [];
 
-  // Render Grid Checklist di dalam Modal
   if (daftarStaff.length === 0) {
     modalList.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:20px; color:var(--gray-500);">Tidak ada data staff untuk ruangan ini.</div>`;
   } else {
@@ -202,17 +233,14 @@ function initPetugasModal(daftarStaff) {
     `).join('');
   }
 
-  // Buka Modal
   btnBuka.addEventListener('click', () => {
     modal.showModal();
   });
 
-  // Tutup Modal
   const closeModal = () => modal.close();
   btnClose.addEventListener('click', closeModal);
   btnSelesai.addEventListener('click', closeModal);
 
-  // Event Centang Individu
   const checkboxes = modalList.querySelectorAll('.staff-checkbox-modal');
   checkboxes.forEach(cb => {
     cb.addEventListener('change', () => {
@@ -228,7 +256,6 @@ function initPetugasModal(daftarStaff) {
     });
   });
 
-  // Event Centang Semua
   checkAll.addEventListener('change', () => {
     checkboxes.forEach(cb => {
       cb.checked = checkAll.checked;
