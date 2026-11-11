@@ -106,7 +106,7 @@ export async function renderLaporanPelayanan(container, state) {
 
     // QUERY HANYA SEKALI (Termasuk ID untuk keperluan Edit)
     const { data, error } = await supabase.from('laporan')
-      .select('id, tanggal, shift, data, petugas_ids')
+      .select('id, tanggal, shift, data, petugas_ids, ruangan_id')
       .eq('ruangan_id', valRuangan)
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
