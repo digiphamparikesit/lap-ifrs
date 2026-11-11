@@ -4,10 +4,9 @@ export const TEMPLATES = {
   rj: {
     key: 'rj',
     nama: 'DEPO FARMASI RAWAT JALAN',
-    punyaShift: true,
+    punyaShift: false,
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
-       id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum', opsi: [{ value: 'pagi', label: 'Shift Pagi' }] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'jam_awal_pagi', label: 'Jam Awal Resep Poliklinik Pagi', type: 'time', group: 'Poliklinik Pagi' },
       { id: 'jam_akhir_pagi', label: 'Jam Akhir Resep Poliklinik Pagi', type: 'time', group: 'Poliklinik Pagi' },
@@ -75,7 +74,11 @@ export const TEMPLATES = {
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
       { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum',
-        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'siang', label: 'Siang' }, { value: 'malam', label: 'Malam' }] },
+        opsi: [
+          { value: 'pagi', label: 'Pagi' },
+          { value: 'siang', label: 'Siang' },
+          { value: 'malam', label: 'Malam' }
+        ] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'resep_terlayani', label: 'Jumlah Resep Terlayani', type: 'number', min: 0, metric: true, group: 'Resep' },
       { id: 'resep_elektrolit', label: 'Jumlah Resep Elektrolit Pekat', type: 'number', min: 0, metric: true, group: 'Resep' },
@@ -98,7 +101,11 @@ export const TEMPLATES = {
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan IBS', type: 'date', required: true, group: 'Umum' },
       { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum',
-        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'siang', label: 'Siang' }, { value: 'malam', label: 'Malam' }] },
+        opsi: [
+          { value: 'pagi', label: 'Pagi' },
+          { value: 'siang', label: 'Siang' },
+          { value: 'malam', label: 'Malam' }
+        ] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'operasi_elektif', label: 'Jumlah Operasi Elektif', type: 'number', min: 0, metric: true, group: 'Operasi' },
       { id: 'operasi_cito', label: 'Jumlah Operasi Cito', type: 'number', min: 0, metric: true, group: 'Operasi' },
