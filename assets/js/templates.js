@@ -4,9 +4,10 @@ export const TEMPLATES = {
   rj: {
     key: 'rj',
     nama: 'DEPO FARMASI RAWAT JALAN',
-    punyaShift: false,
+    punyaShift: true,
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
+       id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum', opsi: [{ value: 'pagi', label: 'Shift Pagi' }] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'jam_awal_pagi', label: 'Jam Awal Resep Poliklinik Pagi', type: 'time', group: 'Poliklinik Pagi' },
       { id: 'jam_akhir_pagi', label: 'Jam Akhir Resep Poliklinik Pagi', type: 'time', group: 'Poliklinik Pagi' },
@@ -26,9 +27,10 @@ export const TEMPLATES = {
   rj_maternitas: {
     key: 'rj_maternitas',
     nama: 'DEPO FARMASI RAWAT JALAN MATERNITAS',
-    punyaShift: false,
+    punyaShift: true,
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
+      { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum', opsi: [{ value: 'pagi', label: 'Shift Pagi' }] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'jam_awal_pagi', label: 'Jam Awal Resep Poliklinik Pagi', type: 'time', group: 'Poliklinik Pagi' },
       { id: 'jam_akhir_pagi', label: 'Jam Akhir Resep Poliklinik Pagi', type: 'time', group: 'Poliklinik Pagi' },
@@ -52,7 +54,11 @@ export const TEMPLATES = {
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
       { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum',
-        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'middle', label: 'Middle' }, { value: 'sore', label: 'Sore' }] },
+        opsi: [
+          { value: 'pagi', label: 'Shift Pagi' },
+          { value: 'middle', label: 'Shift Middle' },
+          { value: 'sore', label: 'Shift Sore' }
+        ] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'resep_per_shift', label: 'Jumlah Resep Per-Shift', type: 'number', min: 0, metric: true, group: 'Resep' },
       { id: 'resep_obat_pulang', label: 'Jumlah Resep Obat Pulang', type: 'number', min: 0, metric: true, group: 'Resep' },
@@ -69,7 +75,7 @@ export const TEMPLATES = {
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
       { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum',
-        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'middle', label: 'Middle' }, { value: 'sore', label: 'Sore' }] },
+        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'siang', label: 'Siang' }, { value: 'malam', label: 'Malam' }] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'resep_terlayani', label: 'Jumlah Resep Terlayani', type: 'number', min: 0, metric: true, group: 'Resep' },
       { id: 'resep_elektrolit', label: 'Jumlah Resep Elektrolit Pekat', type: 'number', min: 0, metric: true, group: 'Resep' },
@@ -92,7 +98,7 @@ export const TEMPLATES = {
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan IBS', type: 'date', required: true, group: 'Umum' },
       { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum',
-        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'middle', label: 'Middle' }, { value: 'sore', label: 'Sore' }] },
+        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'siang', label: 'Siang' }, { value: 'malam', label: 'Malam' }] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'operasi_elektif', label: 'Jumlah Operasi Elektif', type: 'number', min: 0, metric: true, group: 'Operasi' },
       { id: 'operasi_cito', label: 'Jumlah Operasi Cito', type: 'number', min: 0, metric: true, group: 'Operasi' },
@@ -111,7 +117,11 @@ export const TEMPLATES = {
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
       { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum',
-        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'middle', label: 'Middle' }, { value: 'sore', label: 'Sore' }] },
+        opsi: [
+          { value: 'pagi', label: 'Shift Pagi' },
+          { value: 'middle', label: 'Shift Middle' },
+          { value: 'sore', label: 'Shift Sore' }
+        ] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       { id: 'resep_per_shift', label: 'Jumlah Resep Per-Shift', type: 'number', min: 0, metric: true, group: 'Resep' },
       { id: 'racikan_puyer', label: 'Jumlah Resep Racikan (Puyer)', type: 'number', min: 0, metric: true, group: 'Resep' },
@@ -125,14 +135,14 @@ export const TEMPLATES = {
   },
 
   // 7. ONKOLOGI
-    onkologi: {
+  onkologi: {
     key: 'onkologi',
     nama: 'DEPO FARMASI ONKOLOGI TERPADU',
     punyaShift: true,
     fields: [
       { id: 'tanggal', label: 'Tanggal Input Laporan', type: 'date', required: true, group: 'Umum' },
       { id: 'shift', label: 'Jadwal Shift', type: 'select', required: true, group: 'Umum',
-        opsi: [{ value: 'pagi', label: 'Pagi' }, { value: 'middle', label: 'Middle' }, { value: 'sore', label: 'Sore' }] },
+        opsi: [{ value: 'pagi', label: 'Shift Pagi' }] },
       { id: 'petugas', label: 'Nama Petugas', type: 'petugas', required: true, group: 'Umum' },
       
       { id: 'jumlah_pasien_kemoterapi', label: 'Jumlah Pasien Kemoterapi', type: 'number', min: 0, metric: true, group: 'Sediaan IV' },
