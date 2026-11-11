@@ -138,7 +138,7 @@ export async function renderPresensi(container, state) {
       if (tanggal > rekap[clean].lastDate) rekap[clean].lastDate = tanggal;
     };
 
-    // Filter data: MURNI HANYA MEMBACA UUID
+   // Filter data: MURNI HANYA MEMBACA UUID
     data.forEach(lap => {
       if (lap.petugas_ids && lap.petugas_ids.length > 0) {
         lap.petugas_ids.forEach(id => {
