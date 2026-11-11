@@ -7,6 +7,7 @@ import { renderDashboard as loadDashboard } from './dashboard.js'; // <-- TAMBAH
 import { renderLaporanPelayanan } from './laporan_pelayanan.js';
 import { renderPresensi } from './presensi.js';
 import { renderPencarianStaff } from './pencarian_staff.js';
+import { renderLaporanHarian } from './laporan_harian.js';
 
 // State global user
 export const state = {
@@ -79,6 +80,7 @@ const routes = {
   'staff': renderStaff,
   'presensi': renderPresensi,
   'pencarian-staff': renderPencarianStaff,
+  'laporan-harian': renderLaporanHarian,
   'pengaturan': renderPengaturan
 };
 
