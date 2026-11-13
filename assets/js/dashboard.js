@@ -134,12 +134,15 @@ export async function renderDashboard(container, state) {
       let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
 
       // PENERJEMAH OTOMATIS (Mencocokkan 'jumlah_' dari database)
+      // PENERJEMAH OTOMATIS (Mengecek apakah data lama pakai 'jumlah_' atau tidak)
       if (dataRuangan.length > 0 && dataRuangan[0].data[metricId] === undefined) {
+         // Jika metricId asli tidak ada, coba cari dengan awalan 'jumlah_'
          if (dataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
              metricId = `jumlah_${metricId}`;
          } 
-         else if (metricId === 'resep_terlayani') {
-             metricId = 'jumlah_resep_terlayani';
+         // Jika metricId sudah ada 'jumlah_', coba cari tanpa 'jumlah_'
+         else if (metricId.startsWith('jumlah_') && dataRuangan[0].data[metricId.replace('jumlah_', '')] !== undefined) {
+             metricId = metricId.replace('jumlah_', '');
          }
       }
             
