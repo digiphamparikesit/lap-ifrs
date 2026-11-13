@@ -114,6 +114,13 @@ export async function renderDashboard(container, state) {
 
     grid.innerHTML = '';
     dataTerakhir = data;
+    // ==========================================
+    // KODE DEBUGGING SEMENTARA
+    // ==========================================
+    const dataNov = data.filter(d => d.tanggal === '2026-11-12');
+    console.log("=== DATA TANGGAL 12 NOVEMBER ===");
+    console.log(JSON.stringify(dataNov, null, 2));
+    // ==========================================
 
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
 
