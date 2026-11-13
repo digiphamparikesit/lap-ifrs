@@ -111,6 +111,7 @@ export async function renderDashboard(container, state) {
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true });
+     .limit(10000); // <-- TAMBAHKAN BARIS INI
 
     if (!isAdmin) query = query.eq('ruangan_id', state.profile.ruangan_id);
 
@@ -231,6 +232,7 @@ export async function renderDashboard(container, state) {
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true })
+      .limit(10000); // <-- TAMBAHKAN BARIS INI
       .then(({ data }) => {
         
         const grouped = {};
