@@ -8,13 +8,13 @@ let myChart = null;
 // KONFIGURASI METRIK TETAP PER RUANGAN (Terkunci)
 // =========================================================
 const DEFAULT_METRICS = {
-  'ibs': 'jumlah_operasi_elektif',
-  'igd': 'jumlah_resep_terlayani',
-  'irin_mat': 'jumlah_resep', 
-  'irna1': 'jumlah_resep_per_shift',
-  'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika',
-  'rj': 'jumlah_total_resep_harian',
-  'rj_maternitas': 'jumlah_total_resep_harian'
+  'ibs': 'operasi_elektif', // Sesuaikan dengan templates.js (tanpa jumlah_)
+  'igd': 'resep_terlayani', // Sesuaikan dengan templates.js
+  'irin_mat': 'resep_per_shift', // Sesuaikan dengan templates.js
+  'irna1': 'resep_per_shift', // <-- INI YANG BENAR
+  'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika', // Biarkan jika di template ada 'jumlah_'
+  'rj': 'total_resep', // Sesuaikan dengan templates.js
+  'rj_maternitas': 'total_resep' // Sesuaikan dengan templates.js
 };
 
 export async function renderDashboard(container, state) {
