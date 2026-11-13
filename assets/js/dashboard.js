@@ -87,38 +87,58 @@ export async function renderDashboard(container, state) {
 
   let dataTerakhir = [];
 
-      async function loadAllData() {
+        async function loadAllData() {
     const dates = fp.selectedDates;
     if (dates.length !== 2) return;
     
     const formatDate = (date) => {
       const d = new Date(date);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     };
     
     const startDate = formatDate(dates[0]);
-    const endDateObj = new Date(dates[1]);
-    endDateObj.setDate(endDateObj.getDate() + 1);
-    const endDateExclusive = formatDate(endDateObj); 
+    const endDateOriginal = formatDate(dates[1]);
     
     const grid = document.getElementById('charts-grid');
     grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat data...</div>`;
 
+    // 1. Tarik SEMUA data di rentang tanggal (tanpa peduli ruangan)
+    // Kita gunakan limit 10000 langsung.
+    const { data: rawData, error } = await supabase.from('laporan')
+      .select('ruangan_id, tanggal, data')
+      .gte('tanggal', startDate)
+      .lte('tanggal', endDateOriginal)
+      .limit(10000);
+
+    if (error) {
+      grid.innerHTML = `<div class="login-error">Gagal memuat: ${error.message}</div>`;
+      return;
+    }
+
+    console.log("Data mentah yang didapat:", rawData); // Cek di Console!
+
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
-    
-    // 1. RAKIT KERANGKA HTML TERLEBIH DAHULU
-    let gridHTML = '';
-    ruanganToDraw.forEach((r) => {
+    grid.innerHTML = '';
+
+    // 2. Loop untuk setiap ruangan
+    ruanganToDraw.forEach((r, index) => {
+      // Filter data berdasarkan ID ruangan (dipaksa jadi huruf kecil semua biar aman)
+      const dataRuangan = rawData.filter(d => String(d.ruangan_id).toLowerCase() === String(r.id).toLowerCase());
+
       let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
       let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
-      
-      const boxId = `chart-box-${r.id}`;
-      const endDateOriginal = formatDate(dates[1]); 
 
-      gridHTML += `
+      // Jika data pakai 'jumlah_' atau tanpa 'jumlah_'
+      if (dataRuangan.length > 0 && dataRuangan[0].data[metricId] === undefined) {
+         if (dataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
+             metricId = `jumlah_${metricId}`;
+         } else if (metricId.startsWith('jumlah_') && dataRuangan[0].data[metricId.replace('jumlah_', '')] !== undefined) {
+             metricId = metricId.replace('jumlah_', '');
+         }
+      }
+
+      const boxId = `chart-box-${r.id}`;
+      grid.innerHTML += `
         <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDateOriginal}', '${metricLabel}')">
           <h4 style="margin-top:0; color:var(--green-800);">${r.nama}</h4>
           <p style="font-size:0.8rem; color:var(--gray-500); margin-bottom:8px;">Metrik: ${metricLabel}</p>
@@ -127,69 +147,20 @@ export async function renderDashboard(container, state) {
           </div>
         </div>
       `;
-    });
-    grid.innerHTML = gridHTML; // Tampilkan kerangka ke layar
 
-    // 2. LOOPING UNTUK TARIK DATA & GAMBAR GRAFIK
-    for (let index = 0; index < ruanganToDraw.length; index++) {
-      const r = ruanganToDraw[index];
+      // Kumpulkan tanggal unik
+      const labels = [...new Set(dataRuangan.map(d => d.tanggal))].sort();
       
-      let allDataRuangan = [];
-      let from = 0;
-      const step = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase.from('laporan')
-          .select('ruangan_id, tanggal, data')
-          .eq('ruangan_id', r.id) 
-          .gte('tanggal', startDate)
-          .lt('tanggal', endDateExclusive) 
-          .order('tanggal', { ascending: true })
-          .range(from, from + step - 1);
-
-        const { data, error } = await query;
-
-        if (error) {
-          console.error("Gagal load ruangan " + r.nama, error);
-          break;
-        }
-
-        if (data.length > 0) {
-          allDataRuangan = [...allDataRuangan, ...data];
-        }
-
-        if (data.length < step) {
-          hasMore = false; 
-        } else {
-          from += step; 
-        }
-      }
-
-      // Logika penentuan metricId
-      let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
-      let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
-
-      if (allDataRuangan.length > 0 && allDataRuangan[0].data[metricId] === undefined) {
-         if (allDataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
-             metricId = `jumlah_${metricId}`;
-         } else if (metricId.startsWith('jumlah_') && allDataRuangan[0].data[metricId.replace('jumlah_', '')] !== undefined) {
-             metricId = metricId.replace('jumlah_', '');
-         }
-      }
-
-      const boxId = `chart-box-${r.id}`;
-      
-      const labels = [...new Set(allDataRuangan.map(d => d.tanggal))].sort();
+      // Hitung total per tanggal
       const values = labels.map(tgl => {
-        const lapsHariItu = allDataRuangan.filter(d => d.tanggal === tgl);
-        let totalHarian = 0;
+        const lapsHariItu = dataRuangan.filter(d => d.tanggal === tgl);
+        let total = 0;
         lapsHariItu.forEach(lap => {
           let val = lap.data[metricId];
           if (val === undefined) val = lap.data[`jumlah_${metricId}`];
-          totalHarian += (Number(val) || 0);
+          total += (Number(val) || 0);
         });
-        return totalHarian;
+        return total;
       });
 
       const diffDays = (dates[1] - dates[0]) / (1000 * 60 * 60 * 24);
@@ -199,10 +170,10 @@ export async function renderDashboard(container, state) {
         return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       });
 
-      // Render Chart.js (Canvas sudah ada di DOM)
+      // Gambar Grafik
       setTimeout(() => {
         const canvasEl = document.getElementById(boxId);
-        if (!canvasEl) return; // Cegah error jika canvas tidak ditemukan
+        if (!canvasEl) return;
         const ctx = canvasEl.getContext('2d');
         
         new Chart(ctx, {
@@ -216,8 +187,7 @@ export async function renderDashboard(container, state) {
               backgroundColor: 'rgba(22, 163, 74, 0.1)',
               borderWidth: 2,
               fill: true,
-              tension: 0.3,
-              pointRadius: diffDays > 90 ? 0 : 2
+              tension: 0.3
             }]
           },
           options: {
@@ -231,7 +201,7 @@ export async function renderDashboard(container, state) {
           }
         });
       }, 100); 
-    }
+    });
   }
 
   // Fungsi Buka Pop-up Full Screen
