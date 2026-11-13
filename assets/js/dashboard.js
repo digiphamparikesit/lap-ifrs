@@ -157,12 +157,26 @@ export async function renderDashboard(container, state) {
         </div>
       `;
 
+      // 1. Ambil semua tanggal unik dan urutkan
       const labels = [...new Set(dataRuangan.map(d => d.tanggal))].sort();
+      
+      // 2. Hitung total nilai per tanggal (menjumlahkan semua shift)
       const values = labels.map(tgl => {
-        const lap = dataRuangan.find(d => d.tanggal === tgl);
-        return lap ? (lap.data[metricId] || 0) : 0;
+        // Ambil SEMUA laporan di tanggal ini (bisa lebih dari 1 shift)
+        const lapsHariItu = dataRuangan.filter(d => d.tanggal === tgl);
+        
+        // Jumlahkan nilai metric dari semua shift di hari itu
+        let totalHarian = 0;
+        lapsHariItu.forEach(lap => {
+          let val = lap.data[metricId];
+          // Fallback jika data lama pakai 'jumlah_'
+          if (val === undefined) val = lap.data[`jumlah_${metricId}`];
+          
+          totalHarian += (parseInt(val) || 0);
+        });
+        
+        return totalHarian;
       });
-
       const diffDays = (dates[1] - dates[0]) / (1000 * 60 * 60 * 24);
       const formattedLabels = labels.map(l => {
         const d = new Date(l);
@@ -213,8 +227,16 @@ export async function renderDashboard(container, state) {
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true })
       .then(({ data }) => {
-        const labels = data.map(d => d.tanggal);
-        const values = data.map(d => d.data[metricId] || d.data[`jumlah_${metricId}`] || 0);
+        // Kelompokkan berdasarkan tanggal untuk menjumlahkan semua shift
+        const grouped = {};
+        data.forEach(d => {
+           let val = d.data[metricId];
+           if (val === undefined) val = d.data[`jumlah_${metricId}`];
+           grouped[d.tanggal] = (grouped[d.tanggal] || 0) + (parseInt(val) || 0);
+        });
+
+        const labels = Object.keys(grouped).sort();
+        const values = labels.map(tgl => grouped[tgl]);
         const formattedLabels = labels.map(l => new Date(l).toLocaleDateString('id-ID', { day:'2-digit', month:'short'}));
         
         if (myChart) myChart.destroy();
