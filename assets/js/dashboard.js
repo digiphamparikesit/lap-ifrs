@@ -8,22 +8,20 @@ let myChart = null;
 // KONFIGURASI METRIK TETAP PER RUANGAN (Terkunci)
 // =========================================================
 const DEFAULT_METRICS = {
-  'ibs': 'operasi_elektif', // Sesuaikan dengan templates.js (tanpa jumlah_)
-  'igd': 'resep_terlayani', // Sesuaikan dengan templates.js
-  'irin_mat': 'resep_per_shift', // Sesuaikan dengan templates.js
-  'irna1': 'resep_per_shift', // <-- INI YANG BENAR
-  'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika', // Biarkan jika di template ada 'jumlah_'
-  'rj': 'total_resep', // Sesuaikan dengan templates.js
-  'rj_maternitas': 'total_resep' // Sesuaikan dengan templates.js
+  'ibs': 'operasi_elektif',
+  'igd': 'resep_terlayani',
+  'irin_mat': 'resep_per_shift', 
+  'irna1': 'resep_per_shift',
+  'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika',
+  'rj': 'total_resep',
+  'rj_maternitas': 'total_resep'
 };
 
 export async function renderDashboard(container, state) {
   const isAdmin = state.profile.role === 'admin';
   
-  // Ambil daftar ruangan
   const { data: listRuangan } = await supabase.from('ruangan').select('id, nama, template_key').neq('kode', 'ADMIN').order('kode');
 
-  // HTML Tampilan Dashboard (Hanya Filter Tahun & Tanggal)
   container.innerHTML = `
     <div class="dashboard-header">
       <h2 class="page-title">Dashboard Pelayanan</h2>
@@ -45,7 +43,6 @@ export async function renderDashboard(container, state) {
           <input type="text" id="filter-tanggal" class="form-control" placeholder="Pilih rentang..." readonly>
         </div>
         
-        <!-- Tombol Export -->
         <div style="display:flex; gap:8px;">
           <button id="btn-export-excel" class="btn-secondary" style="padding: 8px 12px;">📊 Excel</button>
           <button id="btn-export-pdf" class="btn-secondary" style="padding: 8px 12px;">📄 PDF</button>
@@ -67,7 +64,6 @@ export async function renderDashboard(container, state) {
     </dialog>
   `;
 
-  // Inisialisasi Kalender
   const today = new Date();
   const startOfYear = new Date(today.getFullYear(), 0, 1);
   const fp = flatpickr("#filter-tanggal", {
@@ -79,23 +75,18 @@ export async function renderDashboard(container, state) {
     }
   });
 
-  // Event Listener Tahun
   document.getElementById('filter-tahun').addEventListener('change', (e) => {
     const year = parseInt(e.target.value);
     fp.setDate([`${year}-01-01`, `${year}-12-31`]);
     loadAllData();
   });
 
-  // Event Tutup Modal
   document.getElementById('btn-close-modal').addEventListener('click', () => {
     document.getElementById('modal-chart').close();
   });
 
-  // Variabel penampung data terakhir untuk Export
   let dataTerakhir = [];
-  let currentRuanganName = '';
 
-  // Fungsi Load Data Grafik
   async function loadAllData() {
     const dates = fp.selectedDates;
     if (dates.length !== 2) return;
@@ -106,7 +97,6 @@ export async function renderDashboard(container, state) {
     
     grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat grafik...</div>`;
 
-    // Query dasar
     let query = supabase.from('laporan')
       .select('ruangan_id, tanggal, data')
       .gte('tanggal', startDate)
@@ -123,7 +113,7 @@ export async function renderDashboard(container, state) {
     }
 
     grid.innerHTML = '';
-    dataTerakhir = data; // Simpan untuk export
+    dataTerakhir = data;
 
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
 
@@ -133,15 +123,11 @@ export async function renderDashboard(container, state) {
       let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
       let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
 
-      // PENERJEMAH OTOMATIS (Mencocokkan 'jumlah_' dari database)
-      // PENERJEMAH OTOMATIS (Mengecek apakah data lama pakai 'jumlah_' atau tidak)
+      // Penerjemah otomatis jika format ID beda
       if (dataRuangan.length > 0 && dataRuangan[0].data[metricId] === undefined) {
-         // Jika metricId asli tidak ada, coba cari dengan awalan 'jumlah_'
          if (dataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
              metricId = `jumlah_${metricId}`;
-         } 
-         // Jika metricId sudah ada 'jumlah_', coba cari tanpa 'jumlah_'
-         else if (metricId.startsWith('jumlah_') && dataRuangan[0].data[metricId.replace('jumlah_', '')] !== undefined) {
+         } else if (metricId.startsWith('jumlah_') && dataRuangan[0].data[metricId.replace('jumlah_', '')] !== undefined) {
              metricId = metricId.replace('jumlah_', '');
          }
       }
@@ -157,26 +143,21 @@ export async function renderDashboard(container, state) {
         </div>
       `;
 
-      // 1. Ambil semua tanggal unik dan urutkan
+      // 1. Ambil tanggal unik
       const labels = [...new Set(dataRuangan.map(d => d.tanggal))].sort();
       
-      // 2. Hitung total nilai per tanggal (menjumlahkan semua shift)
+      // 2. Hitung total per tanggal
       const values = labels.map(tgl => {
-        // Ambil SEMUA laporan di tanggal ini (bisa lebih dari 1 shift)
         const lapsHariItu = dataRuangan.filter(d => d.tanggal === tgl);
-        
-        // Jumlahkan nilai metric dari semua shift di hari itu
         let totalHarian = 0;
         lapsHariItu.forEach(lap => {
           let val = lap.data[metricId];
-          // Fallback jika data lama pakai 'jumlah_'
           if (val === undefined) val = lap.data[`jumlah_${metricId}`];
-          
           totalHarian += (parseInt(val) || 0);
         });
-        
         return totalHarian;
       });
+
       const diffDays = (dates[1] - dates[0]) / (1000 * 60 * 60 * 24);
       const formattedLabels = labels.map(l => {
         const d = new Date(l);
@@ -184,6 +165,7 @@ export async function renderDashboard(container, state) {
         return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       });
 
+      // Render Grafik Kecil (Dashboard)
       setTimeout(() => {
         const ctx = document.getElementById(boxId).getContext('2d');
         new Chart(ctx, {
@@ -202,16 +184,18 @@ export async function renderDashboard(container, state) {
             }]
           },
           options: {
-            responsive: true, maintainAspectRatio: false,
+            responsive: true, 
+            maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: { 
-              y: { beginAtZero: true, ticks:{font:{size:10}} }, 
-              x: { ticks:{font:{size:10}} } 
+              // KUNCI PERBAIKAN: Pakai category scale agar string tanggal dibaca persis
+              x: { type: 'category', ticks: { font: { size: 10 } } },
+              y: { beginAtZero: true, ticks: { font: { size: 10 } } } 
             }
           }
         });
       }, 100 * index);
-    });
+    }); // <-- PENUTUP FOREACH YANG TADI HILANG
   }
 
   // Fungsi Buka Pop-up Full Screen
@@ -227,7 +211,7 @@ export async function renderDashboard(container, state) {
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true })
       .then(({ data }) => {
-        // Kelompokkan berdasarkan tanggal untuk menjumlahkan semua shift
+        
         const grouped = {};
         data.forEach(d => {
            let val = d.data[metricId];
@@ -259,9 +243,14 @@ export async function renderDashboard(container, state) {
             }]
           },
           options: {
-            responsive: true, maintainAspectRatio: false,
+            responsive: true, 
+            maintainAspectRatio: false,
             plugins: { legend: { display: true, position: 'top' } },
-            scales: { y: { beginAtZero: true } }
+            scales: { 
+              // KUNCI PERBAIKAN DI POP-UP
+              x: { type: 'category' },
+              y: { beginAtZero: true } 
+            }
           }
         });
       });
@@ -273,7 +262,6 @@ export async function renderDashboard(container, state) {
   document.getElementById('btn-export-excel').addEventListener('click', () => {
     if (!dataTerakhir || dataTerakhir.length === 0) return alert("Tidak ada data untuk diexport.");
     
-    // Siapkan data
     const exportData = dataTerakhir.map(d => {
       const ruang = listRuangan.find(r => r.id === d.ruangan_id)?.nama || '-';
       return {
@@ -300,7 +288,6 @@ export async function renderDashboard(container, state) {
     doc.setFontSize(10);
     doc.text(`Dicetak pada: ${new Date().toLocaleString('id-ID')}`, 14, 22);
 
-    // Ambil nama kolom dari data pertama
     const sample = dataTerakhir[0].data;
     const headers = ['Ruangan', 'Tanggal', ...Object.keys(sample)];
     
@@ -322,6 +309,5 @@ export async function renderDashboard(container, state) {
     doc.save(`Dashboard_Export_${new Date().toISOString().split('T')[0]}.pdf`);
   });
 
-  // Panggil fungsi pertama kali
   await loadAllData();
 }
