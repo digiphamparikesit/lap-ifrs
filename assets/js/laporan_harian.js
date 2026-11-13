@@ -4,13 +4,13 @@ import { getTemplate } from './templates.js';
 
 // KONFIGURASI SAMA PERSIS DENGAN DASHBOARD.JS
 const DEFAULT_METRICS = {
-  'ibs': 'jumlah_operasi_elektif',
-  'igd': 'jumlah_resep_terlayani',
-  'irin_mat': 'jumlah_resep', 
-  'irna1': 'jumlah_resep_per_shift',
+  'ibs': 'operasi_elektif',
+  'igd': 'resep_terlayani',
+  'irin_mat': 'resep_per_shift', 
+  'irna1': 'resep_per_shift', // <-- UBAH
   'onkologi': 'jumlah_sediaan_iv_admixture_sitostatika',
-  'rj': 'jumlah_total_resep_harian',
-  'rj_maternitas': 'jumlah_total_resep_harian'
+  'rj': 'total_resep',
+  'rj_maternitas': 'total_resep'
 };
 
 export async function renderLaporanHarian(container, state) {
