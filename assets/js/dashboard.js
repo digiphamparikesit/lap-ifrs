@@ -91,8 +91,17 @@ export async function renderDashboard(container, state) {
     const dates = fp.selectedDates;
     if (dates.length !== 2) return;
     
-    const startDate = dates[0].toISOString().split('T')[0];
-    const endDate = dates[1].toISOString().split('T')[0];
+    // Mengambil format lokal YYYY-MM-DD secara aman
+    const formatDate = (date) => {
+      const d = new Date(date);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
+    const startDate = formatDate(dates[0]);
+    const endDate = formatDate(dates[1]);
     const grid = document.getElementById('charts-grid');
     
     grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat grafik...</div>`;
@@ -120,6 +129,11 @@ export async function renderDashboard(container, state) {
     const dataNov = data.filter(d => d.tanggal === '2026-11-12');
     console.log("=== DATA TANGGAL 12 NOVEMBER ===");
     console.log(JSON.stringify(dataNov, null, 2));
+    console.log("==================================");
+    console.log("RENTANG TANGGAL QUERY:", startDate, "s/d", endDate);
+    console.log("TOTAL DATA DITEMUKAN:", data.length);
+    console.log("CEK DATA 12 NOV:", data.filter(d => d.tanggal.includes('11-12')));
+    console.log("==================================");
     // ==========================================
 
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
