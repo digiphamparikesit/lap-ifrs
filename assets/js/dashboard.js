@@ -104,38 +104,47 @@ export async function renderDashboard(container, state) {
     const endDate = formatDate(dates[1]);
     const grid = document.getElementById('charts-grid');
     
-    grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat grafik...</div>`;
+    grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat semua data...</div>`;
 
-    let query = supabase.from('laporan')
-      .select('ruangan_id, tanggal, data')
-      .gte('tanggal', startDate)
-      .lte('tanggal', endDate)
-      .order('tanggal', { ascending: true })
-     .limit(10000); // <-- TAMBAHKAN BARIS INI
+    // =========================================================
+    // PAGINATION: Menarik data per 1000 baris agar tidak terpotong
+    // =========================================================
+    let allData = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
 
-    if (!isAdmin) query = query.eq('ruangan_id', state.profile.ruangan_id);
+    while (hasMore) {
+      let query = supabase.from('laporan')
+        .select('ruangan_id, tanggal, data')
+        .gte('tanggal', startDate)
+        .lte('tanggal', endDate)
+        .order('tanggal', { ascending: true })
+        .range(from, from + step - 1); // Kunci Pagination
 
-    const { data, error } = await query;
+      if (!isAdmin) query = query.eq('ruangan_id', state.profile.ruangan_id);
 
-    if (error) {
-      grid.innerHTML = `<div class="login-error">Gagal memuat data: ${error.message}</div>`;
-      return;
+      const { data, error } = await query;
+
+      if (error) {
+        grid.innerHTML = `<div class="login-error">Gagal memuat data: ${error.message}</div>`;
+        return;
+      }
+
+      if (data.length > 0) {
+        allData = [...allData, ...data];
+      }
+
+      if (data.length < step) {
+        hasMore = false; // Jika data < 1000, berarti sudah habis
+      } else {
+        from += step; // Lanjut tarik data berikutnya
+      }
     }
 
+    const data = allData;
     grid.innerHTML = '';
     dataTerakhir = data;
-    // ==========================================
-    // KODE DEBUGGING SEMENTARA
-    // ==========================================
-    const dataNov = data.filter(d => d.tanggal === '2026-11-12');
-    console.log("=== DATA TANGGAL 12 NOVEMBER ===");
-    console.log(JSON.stringify(dataNov, null, 2));
-    console.log("==================================");
-    console.log("RENTANG TANGGAL QUERY:", startDate, "s/d", endDate);
-    console.log("TOTAL DATA DITEMUKAN:", data.length);
-    console.log("CEK DATA 12 NOV:", data.filter(d => d.tanggal.includes('11-12')));
-    console.log("==================================");
-    // ==========================================
 
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
 
@@ -168,14 +177,14 @@ export async function renderDashboard(container, state) {
       // 1. Ambil tanggal unik
       const labels = [...new Set(dataRuangan.map(d => d.tanggal))].sort();
       
-      // 2. Hitung total per tanggal
+      // 2. Hitung total per tanggal (menjumlahkan semua shift di hari itu)
       const values = labels.map(tgl => {
         const lapsHariItu = dataRuangan.filter(d => d.tanggal === tgl);
         let totalHarian = 0;
         lapsHariItu.forEach(lap => {
           let val = lap.data[metricId];
           if (val === undefined) val = lap.data[`jumlah_${metricId}`];
-          totalHarian += (parseInt(val) || 0);
+          totalHarian += (Number(val) || 0);
         });
         return totalHarian;
       });
@@ -210,14 +219,13 @@ export async function renderDashboard(container, state) {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: { 
-              // KUNCI PERBAIKAN: Pakai category scale agar string tanggal dibaca persis
               x: { type: 'category', ticks: { font: { size: 10 } } },
               y: { beginAtZero: true, ticks: { font: { size: 10 } } } 
             }
           }
         });
       }, 100 * index);
-    }); // <-- PENUTUP FOREACH YANG TADI HILANG
+    }); 
   }
 
   // Fungsi Buka Pop-up Full Screen
@@ -232,14 +240,14 @@ export async function renderDashboard(container, state) {
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: true })
-      .limit(10000) // <-- TAMBAHKAN BARIS INI
+      .limit(10000)
       .then(({ data }) => {
         
         const grouped = {};
         data.forEach(d => {
            let val = d.data[metricId];
            if (val === undefined) val = d.data[`jumlah_${metricId}`];
-           grouped[d.tanggal] = (grouped[d.tanggal] || 0) + (parseInt(val) || 0);
+           grouped[d.tanggal] = (grouped[d.tanggal] || 0) + (Number(val) || 0);
         });
 
         const labels = Object.keys(grouped).sort();
@@ -270,7 +278,6 @@ export async function renderDashboard(container, state) {
             maintainAspectRatio: false,
             plugins: { legend: { display: true, position: 'top' } },
             scales: { 
-              // KUNCI PERBAIKAN DI POP-UP
               x: { type: 'category' },
               y: { beginAtZero: true } 
             }
