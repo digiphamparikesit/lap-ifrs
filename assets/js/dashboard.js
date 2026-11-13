@@ -87,11 +87,11 @@ export async function renderDashboard(container, state) {
 
   let dataTerakhir = [];
 
-  async function loadAllData() {
+    async function loadAllData() {
     const dates = fp.selectedDates;
     if (dates.length !== 2) return;
     
-    // Mengambil format lokal YYYY-MM-DD secara aman
+    // Format ke YYYY-MM-DD murni
     const formatDate = (date) => {
       const d = new Date(date);
       const year = d.getFullYear();
@@ -101,14 +101,15 @@ export async function renderDashboard(container, state) {
     };
     
     const startDate = formatDate(dates[0]);
-    const endDate = formatDate(dates[1]);
-    const grid = document.getElementById('charts-grid');
     
+    // TRIK: Tambah 1 hari ke tanggal akhir
+    const endDateObj = new Date(dates[1]);
+    endDateObj.setDate(endDateObj.getDate() + 1);
+    const endDateExclusive = formatDate(endDateObj); 
+    
+    const grid = document.getElementById('charts-grid');
     grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat semua data...</div>`;
 
-    // =========================================================
-    // PAGINATION: Menarik data per 1000 baris agar tidak terpotong
-    // =========================================================
     let allData = [];
     let from = 0;
     const step = 1000;
@@ -118,9 +119,10 @@ export async function renderDashboard(container, state) {
       let query = supabase.from('laporan')
         .select('ruangan_id, tanggal, data')
         .gte('tanggal', startDate)
-        .lte('tanggal', endDate)
+        // GUNAKAN .lt() DENGAN TANGGAL BESOK
+        .lt('tanggal', endDateExclusive) 
         .order('tanggal', { ascending: true })
-        .range(from, from + step - 1); // Kunci Pagination
+        .range(from, from + step - 1);
 
       if (!isAdmin) query = query.eq('ruangan_id', state.profile.ruangan_id);
 
@@ -136,9 +138,9 @@ export async function renderDashboard(container, state) {
       }
 
       if (data.length < step) {
-        hasMore = false; // Jika data < 1000, berarti sudah habis
+        hasMore = false; 
       } else {
-        from += step; // Lanjut tarik data berikutnya
+        from += step; 
       }
     }
 
@@ -154,7 +156,6 @@ export async function renderDashboard(container, state) {
       let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
       let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
 
-      // Penerjemah otomatis jika format ID beda
       if (dataRuangan.length > 0 && dataRuangan[0].data[metricId] === undefined) {
          if (dataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
              metricId = `jumlah_${metricId}`;
@@ -164,8 +165,11 @@ export async function renderDashboard(container, state) {
       }
             
       const boxId = `chart-box-${r.id}`;
+      // Karena parameter startDate & endDate untuk openFullScreen butuh format asli:
+      const endDateOriginal = formatDate(dates[1]); 
+
       grid.innerHTML += `
-        <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDate}', '${metricLabel}')">
+        <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDateOriginal}', '${metricLabel}')">
           <h4 style="margin-top:0; color:var(--green-800);">${r.nama}</h4>
           <p style="font-size:0.8rem; color:var(--gray-500); margin-bottom:8px;">Metrik: ${metricLabel}</p>
           <div style="position:relative; height:200px;">
@@ -174,10 +178,8 @@ export async function renderDashboard(container, state) {
         </div>
       `;
 
-      // 1. Ambil tanggal unik
       const labels = [...new Set(dataRuangan.map(d => d.tanggal))].sort();
       
-      // 2. Hitung total per tanggal (menjumlahkan semua shift di hari itu)
       const values = labels.map(tgl => {
         const lapsHariItu = dataRuangan.filter(d => d.tanggal === tgl);
         let totalHarian = 0;
@@ -196,7 +198,6 @@ export async function renderDashboard(container, state) {
         return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       });
 
-      // Render Grafik Kecil (Dashboard)
       setTimeout(() => {
         const ctx = document.getElementById(boxId).getContext('2d');
         new Chart(ctx, {
@@ -234,11 +235,16 @@ export async function renderDashboard(container, state) {
     document.getElementById('modal-title').textContent = `Grafik Detail: ${ruanganNama} (${metricLabel})`;
     dialog.showModal();
 
+    // Konversi endDate ke tanggal besok
+    const endDateObj2 = new Date(endDate);
+    endDateObj2.setDate(endDateObj2.getDate() + 1);
+    const endDateExclusive2 = endDateObj2.toISOString().split('T')[0];
+
     supabase.from('laporan')
       .select('tanggal, data')
       .eq('ruangan_id', ruanganId)
       .gte('tanggal', startDate)
-      .lte('tanggal', endDate)
+      .lt('tanggal', endDateExclusive2) // <-- Gunakan .lt()
       .order('tanggal', { ascending: true })
       .limit(10000)
       .then(({ data }) => {
