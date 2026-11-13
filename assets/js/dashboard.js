@@ -114,7 +114,10 @@ export async function renderDashboard(container, state) {
       grid.innerHTML = `<div class="login-error">Gagal memuat: ${error.message}</div>`;
       return;
     }
-
+          
+   // TAMBAHKAN BARIS INI:
+    dataTerakhir = rawData; 
+          
     console.log("Data mentah yang didapat:", rawData); // Cek di Console!
 
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
