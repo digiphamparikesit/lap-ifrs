@@ -87,11 +87,10 @@ export async function renderDashboard(container, state) {
 
   let dataTerakhir = [];
 
-    async function loadAllData() {
+      async function loadAllData() {
     const dates = fp.selectedDates;
     if (dates.length !== 2) return;
     
-    // Format ke YYYY-MM-DD murni
     const formatDate = (date) => {
       const d = new Date(date);
       const year = d.getFullYear();
@@ -101,25 +100,40 @@ export async function renderDashboard(container, state) {
     };
     
     const startDate = formatDate(dates[0]);
-    
-    // TRIK: Tambah 1 hari ke tanggal akhir
     const endDateObj = new Date(dates[1]);
     endDateObj.setDate(endDateObj.getDate() + 1);
     const endDateExclusive = formatDate(endDateObj); 
     
     const grid = document.getElementById('charts-grid');
-    grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat semua data...</div>`;
+    grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat data...</div>`;
 
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
     
-    // Kosongkan grid untuk mulai menggambar
-    grid.innerHTML = '';
+    // 1. RAKIT KERANGKA HTML TERLEBIH DAHULU
+    let gridHTML = '';
+    ruanganToDraw.forEach((r) => {
+      let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
+      let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
+      
+      const boxId = `chart-box-${r.id}`;
+      const endDateOriginal = formatDate(dates[1]); 
 
-    // LOOPING PER RUANGAN
+      gridHTML += `
+        <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDateOriginal}', '${metricLabel}')">
+          <h4 style="margin-top:0; color:var(--green-800);">${r.nama}</h4>
+          <p style="font-size:0.8rem; color:var(--gray-500); margin-bottom:8px;">Metrik: ${metricLabel}</p>
+          <div style="position:relative; height:200px;">
+            <canvas id="${boxId}"></canvas>
+          </div>
+        </div>
+      `;
+    });
+    grid.innerHTML = gridHTML; // Tampilkan kerangka ke layar
+
+    // 2. LOOPING UNTUK TARIK DATA & GAMBAR GRAFIK
     for (let index = 0; index < ruanganToDraw.length; index++) {
       const r = ruanganToDraw[index];
       
-      // Query KHUSUS untuk ruangan ini saja
       let allDataRuangan = [];
       let from = 0;
       const step = 1000;
@@ -128,7 +142,7 @@ export async function renderDashboard(container, state) {
       while (hasMore) {
         let query = supabase.from('laporan')
           .select('ruangan_id, tanggal, data')
-          .eq('ruangan_id', r.id) // <-- KUNCI: Filter langsung di query database
+          .eq('ruangan_id', r.id) 
           .gte('tanggal', startDate)
           .lt('tanggal', endDateExclusive) 
           .order('tanggal', { ascending: true })
@@ -152,7 +166,7 @@ export async function renderDashboard(container, state) {
         }
       }
 
-      // --- PROSES MENGGAMBAR GRAFIK UNTUK RUANGAN INI ---
+      // Logika penentuan metricId
       let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
       let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
 
@@ -163,22 +177,9 @@ export async function renderDashboard(container, state) {
              metricId = metricId.replace('jumlah_', '');
          }
       }
-            
+
       const boxId = `chart-box-${r.id}`;
-      const endDateOriginal = formatDate(dates[1]); 
-
-      // Tambahkan Card HTML
-      grid.innerHTML += `
-        <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDateOriginal}', '${metricLabel}')">
-          <h4 style="margin-top:0; color:var(--green-800);">${r.nama}</h4>
-          <p style="font-size:0.8rem; color:var(--gray-500); margin-bottom:8px;">Metrik: ${metricLabel}</p>
-          <div style="position:relative; height:200px;">
-            <canvas id="${boxId}"></canvas>
-          </div>
-        </div>
-      `;
-
-      // Olah Data Grafik
+      
       const labels = [...new Set(allDataRuangan.map(d => d.tanggal))].sort();
       const values = labels.map(tgl => {
         const lapsHariItu = allDataRuangan.filter(d => d.tanggal === tgl);
@@ -198,11 +199,12 @@ export async function renderDashboard(container, state) {
         return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       });
 
-      // Gambar Chart.js
+      // Render Chart.js (Canvas sudah ada di DOM)
       setTimeout(() => {
         const canvasEl = document.getElementById(boxId);
-        if (!canvasEl) return;
+        if (!canvasEl) return; // Cegah error jika canvas tidak ditemukan
         const ctx = canvasEl.getContext('2d');
+        
         new Chart(ctx, {
           type: 'line',
           data: {
@@ -228,11 +230,8 @@ export async function renderDashboard(container, state) {
             }
           }
         });
-      }, 100); // Delay sedikit agar HTML selesai dirender
+      }, 100); 
     }
-    
-    // Simpan semua data ke variabel global untuk keperluan export (jika dibutuhkan)
-    // Kita tidak perlu menyimpan semuanya sekaligus di sini untuk menghindari memory leak
   }
 
   // Fungsi Buka Pop-up Full Screen
