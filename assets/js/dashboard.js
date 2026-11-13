@@ -110,64 +110,64 @@ export async function renderDashboard(container, state) {
     const grid = document.getElementById('charts-grid');
     grid.innerHTML = `<div class="loading-state" style="grid-column:1/-1;"><div class="spinner spinner-dark"></div> Memuat semua data...</div>`;
 
-    let allData = [];
-    let from = 0;
-    const step = 1000;
-    let hasMore = true;
-
-    while (hasMore) {
-      let query = supabase.from('laporan')
-        .select('ruangan_id, tanggal, data')
-        .gte('tanggal', startDate)
-        // GUNAKAN .lt() DENGAN TANGGAL BESOK
-        .lt('tanggal', endDateExclusive) 
-        .order('tanggal', { ascending: true })
-        .range(from, from + step - 1);
-
-      if (!isAdmin) query = query.eq('ruangan_id', state.profile.ruangan_id);
-
-      const { data, error } = await query;
-
-      if (error) {
-        grid.innerHTML = `<div class="login-error">Gagal memuat data: ${error.message}</div>`;
-        return;
-      }
-
-      if (data.length > 0) {
-        allData = [...allData, ...data];
-      }
-
-      if (data.length < step) {
-        hasMore = false; 
-      } else {
-        from += step; 
-      }
-    }
-
-    const data = allData;
-    grid.innerHTML = '';
-    dataTerakhir = data;
-
     let ruanganToDraw = isAdmin ? listRuangan : [state.ruangan];
+    
+    // Kosongkan grid untuk mulai menggambar
+    grid.innerHTML = '';
 
-    ruanganToDraw.forEach((r, index) => {
-      const dataRuangan = data.filter(d => d.ruangan_id === r.id);
+    // LOOPING PER RUANGAN
+    for (let index = 0; index < ruanganToDraw.length; index++) {
+      const r = ruanganToDraw[index];
+      
+      // Query KHUSUS untuk ruangan ini saja
+      let allDataRuangan = [];
+      let from = 0;
+      const step = 1000;
+      let hasMore = true;
 
+      while (hasMore) {
+        let query = supabase.from('laporan')
+          .select('ruangan_id, tanggal, data')
+          .eq('ruangan_id', r.id) // <-- KUNCI: Filter langsung di query database
+          .gte('tanggal', startDate)
+          .lt('tanggal', endDateExclusive) 
+          .order('tanggal', { ascending: true })
+          .range(from, from + step - 1);
+
+        const { data, error } = await query;
+
+        if (error) {
+          console.error("Gagal load ruangan " + r.nama, error);
+          break;
+        }
+
+        if (data.length > 0) {
+          allDataRuangan = [...allDataRuangan, ...data];
+        }
+
+        if (data.length < step) {
+          hasMore = false; 
+        } else {
+          from += step; 
+        }
+      }
+
+      // --- PROSES MENGGAMBAR GRAFIK UNTUK RUANGAN INI ---
       let metricId = DEFAULT_METRICS[r.template_key] || getMetricFields(r.template_key)[0]?.id;
       let metricLabel = getMetricFields(r.template_key).find(m => m.id === metricId)?.label || 'Data';
 
-      if (dataRuangan.length > 0 && dataRuangan[0].data[metricId] === undefined) {
-         if (dataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
+      if (allDataRuangan.length > 0 && allDataRuangan[0].data[metricId] === undefined) {
+         if (allDataRuangan[0].data[`jumlah_${metricId}`] !== undefined) {
              metricId = `jumlah_${metricId}`;
-         } else if (metricId.startsWith('jumlah_') && dataRuangan[0].data[metricId.replace('jumlah_', '')] !== undefined) {
+         } else if (metricId.startsWith('jumlah_') && allDataRuangan[0].data[metricId.replace('jumlah_', '')] !== undefined) {
              metricId = metricId.replace('jumlah_', '');
          }
       }
             
       const boxId = `chart-box-${r.id}`;
-      // Karena parameter startDate & endDate untuk openFullScreen butuh format asli:
       const endDateOriginal = formatDate(dates[1]); 
 
+      // Tambahkan Card HTML
       grid.innerHTML += `
         <div class="chart-card" style="cursor:pointer;" onclick="openFullScreen('${r.id}', '${r.nama.replace(/'/g, "\\'")}', '${metricId}', '${startDate}', '${endDateOriginal}', '${metricLabel}')">
           <h4 style="margin-top:0; color:var(--green-800);">${r.nama}</h4>
@@ -178,10 +178,10 @@ export async function renderDashboard(container, state) {
         </div>
       `;
 
-      const labels = [...new Set(dataRuangan.map(d => d.tanggal))].sort();
-      
+      // Olah Data Grafik
+      const labels = [...new Set(allDataRuangan.map(d => d.tanggal))].sort();
       const values = labels.map(tgl => {
-        const lapsHariItu = dataRuangan.filter(d => d.tanggal === tgl);
+        const lapsHariItu = allDataRuangan.filter(d => d.tanggal === tgl);
         let totalHarian = 0;
         lapsHariItu.forEach(lap => {
           let val = lap.data[metricId];
@@ -198,8 +198,11 @@ export async function renderDashboard(container, state) {
         return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       });
 
+      // Gambar Chart.js
       setTimeout(() => {
-        const ctx = document.getElementById(boxId).getContext('2d');
+        const canvasEl = document.getElementById(boxId);
+        if (!canvasEl) return;
+        const ctx = canvasEl.getContext('2d');
         new Chart(ctx, {
           type: 'line',
           data: {
@@ -225,8 +228,11 @@ export async function renderDashboard(container, state) {
             }
           }
         });
-      }, 100 * index);
-    }); 
+      }, 100); // Delay sedikit agar HTML selesai dirender
+    }
+    
+    // Simpan semua data ke variabel global untuk keperluan export (jika dibutuhkan)
+    // Kita tidak perlu menyimpan semuanya sekaligus di sini untuk menghindari memory leak
   }
 
   // Fungsi Buka Pop-up Full Screen
